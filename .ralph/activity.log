@@ -1,6 +1,7 @@
 # Activity Log
 
 ## Run Summary
+- 2026-03-08 23:50:50 | run=20260308-221730-36676 | iter=5 | mode=build | story=US-005 | duration=1358s | status=success
 - 2026-03-08 23:28:09 | run=20260308-221730-36676 | iter=4 | mode=build | story=US-004 | duration=907s | status=success
 - 2026-03-08 23:13:00 | run=20260308-221730-36676 | iter=3 | mode=build | story=US-003 | duration=1566s | status=success
 - 2026-03-08 22:46:52 | run=20260308-221730-36676 | iter=2 | mode=build | story=US-002 | duration=903s | status=success
@@ -45,3 +46,7 @@
 [2026-03-08 23:48:22] US-005 review complete; staging changes for implementation commit
 [2026-03-08 23:49:50] US-005 progress log appended with commit and verification details
 [2026-03-08 23:50:09] US-005 final bookkeeping committed; worktree clean
+[2026-03-08 23:50:50] ITERATION 5 end (duration=1358s)
+[2026-03-08 23:50:53] ITERATION 6 start (mode=build story=US-006)
+[2026-03-09 00:05:13] Major code changes completed for US-006: added disclosure and financial collectors, routes, and dashboard sections
+[2026-03-09 00:08:11] Verification completed for US-006: build passed, local APIs returned disclosure/financial data, and browser checks passed for default and high-importance disclosure flows
