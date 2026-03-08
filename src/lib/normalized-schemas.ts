@@ -161,6 +161,43 @@ export const communityPostSchema = z.object({
   sentiment: sentimentSchema,
 });
 
+export const themeSummaryItemSchema = z.object({
+  label: nonEmptyStringSchema,
+  mentions: nonNegativeIntegerSchema,
+});
+
+export const communitySummarySchema = z
+  .object({
+    totalPosts: nonNegativeIntegerSchema,
+    bullishCount: nonNegativeIntegerSchema,
+    bearishCount: nonNegativeIntegerSchema,
+    neutralCount: nonNegativeIntegerSchema,
+    topThemes: z.array(themeSummaryItemSchema).max(5).default([]),
+  })
+  .superRefine((summary, ctx) => {
+    if (
+      summary.bullishCount + summary.bearishCount + summary.neutralCount !==
+      summary.totalPosts
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["totalPosts"],
+        message:
+          "communitySummary counts must add up to the totalPosts value",
+      });
+    }
+  });
+
+export const communityLookupResultSchema = z.object({
+  stockCode: stockCodeSchema,
+  companyName: nonEmptyStringSchema,
+  source: sourceCaptureSchema,
+  community: z.array(communityPostSchema),
+  summary: communitySummarySchema,
+  diagnostics: z.array(sourceDiagnosticSchema).default([]),
+  sourceStatus: z.array(sourceStatusSchema).default([]),
+});
+
 export const disclosureItemSchema = z.object({
   id: nonEmptyStringSchema,
   source: sourceIdSchema,
@@ -239,6 +276,9 @@ export type QuoteLookupResult = z.infer<typeof quoteLookupResultSchema>;
 export type NewsItem = z.infer<typeof newsItemSchema>;
 export type NewsLookupResult = z.infer<typeof newsLookupResultSchema>;
 export type CommunityPost = z.infer<typeof communityPostSchema>;
+export type ThemeSummaryItem = z.infer<typeof themeSummaryItemSchema>;
+export type CommunitySummary = z.infer<typeof communitySummarySchema>;
+export type CommunityLookupResult = z.infer<typeof communityLookupResultSchema>;
 export type DisclosureItem = z.infer<typeof disclosureItemSchema>;
 export type FinancialSnapshot = z.infer<typeof financialSnapshotSchema>;
 export type HorizonSignal = z.infer<typeof horizonSignalSchema>;

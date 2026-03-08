@@ -1,6 +1,7 @@
 # Activity Log
 
 ## Run Summary
+- 2026-03-08 23:28:09 | run=20260308-221730-36676 | iter=4 | mode=build | story=US-004 | duration=907s | status=success
 - 2026-03-08 23:13:00 | run=20260308-221730-36676 | iter=3 | mode=build | story=US-003 | duration=1566s | status=success
 - 2026-03-08 22:46:52 | run=20260308-221730-36676 | iter=2 | mode=build | story=US-002 | duration=903s | status=success
 - 2026-03-08 22:31:45 | run=20260308-221730-36676 | iter=1 | mode=build | story=US-001 | duration=855s | status=success
@@ -33,3 +34,12 @@
 [2026-03-08 23:22:38] US-004 verification: build passed, starting dev server and runtime checks
 [2026-03-08 23:25:42] US-004 verification: build, API checks, mocked normalization logic review, and browser validation passed
 [2026-03-08 23:27:28] Updated progress log for US-004 with commit and verification details
+[2026-03-08 23:28:09] ITERATION 4 end (duration=907s)
+[2026-03-08 23:28:12] ITERATION 5 start (mode=build story=US-005)
+[2026-03-08 23:35:24] US-005 audit complete; implementing Tistory community adapter, API route, and dashboard summary UI
+[2026-03-08 23:42:04] US-005 code changes applied; running build verification
+[2026-03-08 23:42:24] US-005 build passed; starting dev server for browser verification
+[2026-03-08 23:43:41] US-005 browser verification found a relevance-filter false positive; tightening community matching
+[2026-03-08 23:45:30] US-005 final verification: rebuild and direct community API check
+[2026-03-08 23:47:57] US-005 browser verification passed; running final build before commit
+[2026-03-08 23:48:22] US-005 review complete; staging changes for implementation commit

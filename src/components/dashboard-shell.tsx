@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import type {
+  CommunityLookupResult,
   NewsLookupResult,
   QuoteLookupResult,
 } from "@/lib/normalized-schemas";
@@ -45,6 +46,15 @@ type NewsApiError = {
   };
 };
 
+type CommunityApiError = {
+  error?: {
+    summary?: string;
+    issues?: Array<{
+      message?: string;
+    }>;
+  };
+};
+
 const numberFormatter = new Intl.NumberFormat("ko-KR");
 const percentFormatter = new Intl.NumberFormat("ko-KR", {
   minimumFractionDigits: 2,
@@ -52,15 +62,6 @@ const percentFormatter = new Intl.NumberFormat("ko-KR", {
 });
 
 const placeholderSections = [
-  {
-    title: "Community Reaction",
-    badge: "Queued for US-005",
-    copy: "Public forum, blog, and sentiment excerpts will appear here after source approval.",
-    rows: [
-      ["Retail sentiment snapshot", "Bullish, neutral, bearish mix"],
-      ["High-engagement post placeholder", "Engagement, source, excerpt"],
-    ],
-  },
   {
     title: "Disclosures",
     badge: "Queued for US-006",
@@ -83,6 +84,8 @@ const placeholderSections = [
 
 const defaultNewsFeedback =
   "Recent headlines, summaries, sentiment, and publisher timestamps will appear after a successful quote lookup.";
+const defaultCommunityFeedback =
+  "Public community reaction will appear after a successful quote lookup, with unavailable sources skipped automatically.";
 
 const signals = [
   {
@@ -119,9 +122,16 @@ export function DashboardShell({ config }: DashboardShellProps) {
   const [isInvalid, setIsInvalid] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isNewsLoading, setIsNewsLoading] = useState(false);
+  const [isCommunityLoading, setIsCommunityLoading] = useState(false);
   const [quoteResult, setQuoteResult] = useState<QuoteLookupResult | null>(null);
   const [newsResult, setNewsResult] = useState<NewsLookupResult | null>(null);
+  const [communityResult, setCommunityResult] = useState<CommunityLookupResult | null>(
+    null,
+  );
   const [newsFeedback, setNewsFeedback] = useState(defaultNewsFeedback);
+  const [communityFeedback, setCommunityFeedback] = useState(
+    defaultCommunityFeedback,
+  );
 
   const sourceSummary = config.enabledSources.map(({ label, enabled }) => ({
     label,
@@ -129,6 +139,9 @@ export function DashboardShell({ config }: DashboardShellProps) {
   }));
   const isNewsEnabled =
     config.enabledSources.find((source) => source.label === "News")?.enabled ?? false;
+  const isCommunityEnabled =
+    config.enabledSources.find((source) => source.label === "Community")?.enabled ??
+    false;
 
   useEffect(() => {
     void lookupQuote("005930", true);
@@ -138,6 +151,12 @@ export function DashboardShell({ config }: DashboardShellProps) {
     setIsNewsLoading(false);
     setNewsResult(null);
     setNewsFeedback(message);
+  }
+
+  function resetCommunityState(message = defaultCommunityFeedback) {
+    setIsCommunityLoading(false);
+    setCommunityResult(null);
+    setCommunityFeedback(message);
   }
 
   async function lookupNews(
@@ -208,6 +227,76 @@ export function DashboardShell({ config }: DashboardShellProps) {
     }
   }
 
+  async function lookupCommunity(
+    resolvedStockCode: string,
+    companyName: string,
+    isInitialLoad = false,
+  ) {
+    if (!isCommunityEnabled) {
+      resetCommunityState("Community collection is disabled by configuration.");
+      return;
+    }
+
+    setIsCommunityLoading(true);
+    setCommunityFeedback(
+      isInitialLoad
+        ? `Loading public community reaction for ${companyName} (${resolvedStockCode})...`
+        : `Collecting public community reaction for ${companyName}...`,
+    );
+
+    try {
+      const response = await fetch(
+        `/api/community?stockCode=${encodeURIComponent(resolvedStockCode)}&companyName=${encodeURIComponent(companyName)}`,
+        {
+          cache: "no-store",
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | CommunityLookupResult
+        | CommunityApiError
+        | null;
+
+      if (
+        !response.ok ||
+        !payload ||
+        typeof payload !== "object" ||
+        !("community" in payload)
+      ) {
+        const apiError = payload as CommunityApiError | null;
+        const issueMessage = apiError?.error?.issues?.[0]?.message;
+        const summary = apiError?.error?.summary;
+
+        setCommunityResult(null);
+        setCommunityFeedback(
+          issueMessage ??
+            summary ??
+            `Community lookup failed with status ${response.status}.`,
+        );
+        return;
+      }
+
+      const unavailableSources = payload.sourceStatus.filter(
+        (status) => status.status !== "ready",
+      ).length;
+
+      setCommunityResult(payload);
+      setCommunityFeedback(
+        payload.community.length > 0
+          ? `Loaded ${payload.community.length} public posts with ${payload.summary.bullishCount} bullish, ${payload.summary.bearishCount} bearish, and ${payload.summary.neutralCount} neutral mentions.${unavailableSources > 0 ? ` ${unavailableSources} unavailable sources were skipped.` : ""}`
+          : unavailableSources > 0
+            ? `No validated public community posts remained. ${unavailableSources} unavailable sources were skipped without bypass attempts.`
+            : `No recent public community posts were returned for ${companyName}.`,
+      );
+    } catch {
+      setCommunityResult(null);
+      setCommunityFeedback(
+        "Community lookup failed because the source request could not be completed.",
+      );
+    } finally {
+      setIsCommunityLoading(false);
+    }
+  }
+
   async function lookupQuote(requestedCode: string, isInitialLoad = false) {
     const normalized = requestedCode.trim();
 
@@ -217,6 +306,11 @@ export function DashboardShell({ config }: DashboardShellProps) {
       isNewsEnabled
         ? "Recent news will load after a successful quote lookup."
         : "News collection is disabled by configuration.",
+    );
+    resetCommunityState(
+      isCommunityEnabled
+        ? "Public community reaction will load after a successful quote lookup."
+        : "Community collection is disabled by configuration.",
     );
     setFeedback(
       isInitialLoad
@@ -253,6 +347,11 @@ export function DashboardShell({ config }: DashboardShellProps) {
             ? "Resolve a valid stock code to load recent news."
             : "News collection is disabled by configuration.",
         );
+        resetCommunityState(
+          isCommunityEnabled
+            ? "Resolve a valid stock code to load public community reaction."
+            : "Community collection is disabled by configuration.",
+        );
         setFeedback(
           issueMessage ??
             summary ??
@@ -263,6 +362,7 @@ export function DashboardShell({ config }: DashboardShellProps) {
 
       setQuoteResult(payload);
       void lookupNews(payload.stockCode, payload.companyName, isInitialLoad);
+      void lookupCommunity(payload.stockCode, payload.companyName, isInitialLoad);
       setFeedback(
         `Resolved ${payload.companyName} (${payload.market}) via ${payload.resolution.source} and captured ${payload.quote.trendPoints.length} recent price points from ${payload.quote.source}.`,
       );
@@ -273,6 +373,11 @@ export function DashboardShell({ config }: DashboardShellProps) {
         isNewsEnabled
           ? "Resolve a valid stock code to load recent news."
           : "News collection is disabled by configuration.",
+      );
+      resetCommunityState(
+        isCommunityEnabled
+          ? "Resolve a valid stock code to load public community reaction."
+          : "Community collection is disabled by configuration.",
       );
       setFeedback("Quote lookup failed because the source request could not be completed.");
     } finally {
@@ -291,6 +396,11 @@ export function DashboardShell({ config }: DashboardShellProps) {
           ? "Resolve a valid stock code to load recent news."
           : "News collection is disabled by configuration.",
       );
+      resetCommunityState(
+        isCommunityEnabled
+          ? "Resolve a valid stock code to load public community reaction."
+          : "Community collection is disabled by configuration.",
+      );
       setIsInvalid(true);
       setFeedback("Enter exactly six numeric digits. Example: 005930.");
       return;
@@ -306,6 +416,8 @@ export function DashboardShell({ config }: DashboardShellProps) {
     ? `${quoteResult.resolution.source} confirmed the listing at ${formatTimestamp(quoteResult.resolution.capturedAt)} KST. ${quoteResult.quote.source} captured ${quoteResult.quote.trendPoints.length} recent 5-minute points at ${formatTimestamp(quoteResult.quote.capturedAt)} KST.`
     : "Company name, market, source ids, and the latest quote timestamp appear here after a successful lookup.";
   const changeTone = getTone(quoteResult?.quote.changeAmount ?? 0);
+  const unavailableCommunitySources =
+    communityResult?.sourceStatus.filter((status) => status.status !== "ready") ?? [];
 
   return (
     <main className={styles.page}>
@@ -316,9 +428,9 @@ export function DashboardShell({ config }: DashboardShellProps) {
             <h1 className={styles.headline}>Enter a Korean stock code.</h1>
             <p className={styles.lede}>
               The dashboard now validates the 6-digit stock code, resolves the listed
-              company and market, collects a normalized public quote snapshot, and
-              pulls recent deduplicated news before downstream stories add more
-              evidence.
+              company and market, collects a normalized public quote snapshot, pulls
+              recent deduplicated news, and summarizes public community reaction
+              before downstream stories add disclosures and deeper financial context.
             </p>
 
             <form className={styles.form} noValidate onSubmit={handleSubmit}>
@@ -341,7 +453,9 @@ export function DashboardShell({ config }: DashboardShellProps) {
                 The quote source resolves company metadata, latest price, change,
                 change percentage, volume, and a recent trend series. The approved
                 public news source adds recent headlines, summaries, timestamps, and
-                sentiment. Later stories add community, disclosures, and financials.
+                sentiment. The public community source adds retail themes,
+                engagement proxies, and bullish versus bearish counts. Later stories
+                add disclosures and financials.
               </p>
               <p
                 aria-live="polite"
@@ -501,6 +615,134 @@ export function DashboardShell({ config }: DashboardShellProps) {
               </div>
             ) : null}
           </article>
+          <article className={`${styles.card} ${styles.communityCard}`}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>Community Reaction</h2>
+                <p className={styles.sectionCopy}>
+                  Public blog and discussion posts are normalized into title, excerpt,
+                  post source, publish time, URL, engagement proxy, and a retail
+                  sentiment classification.
+                </p>
+              </div>
+              <span className={styles.badge}>
+                {!isCommunityEnabled
+                  ? "Disabled"
+                  : isCommunityLoading
+                    ? "Loading"
+                    : communityResult
+                      ? `${communityResult.summary.totalPosts} live`
+                      : "Live"}
+              </span>
+            </div>
+            <p className={styles.newsStatus}>{communityFeedback}</p>
+            {communityResult ? (
+              <div className={styles.communitySummary}>
+                <div className={styles.communityMetric}>
+                  <span className={styles.communityMetricLabel}>Bullish</span>
+                  <strong className={styles.communityMetricValue}>
+                    {communityResult.summary.bullishCount}
+                  </strong>
+                </div>
+                <div className={styles.communityMetric}>
+                  <span className={styles.communityMetricLabel}>Neutral</span>
+                  <strong className={styles.communityMetricValue}>
+                    {communityResult.summary.neutralCount}
+                  </strong>
+                </div>
+                <div className={styles.communityMetric}>
+                  <span className={styles.communityMetricLabel}>Bearish</span>
+                  <strong className={styles.communityMetricValue}>
+                    {communityResult.summary.bearishCount}
+                  </strong>
+                </div>
+                <div className={styles.communityMetric}>
+                  <span className={styles.communityMetricLabel}>Captured</span>
+                  <strong className={styles.communityMetricValueSmall}>
+                    {formatTimestamp(communityResult.source.capturedAt)} KST
+                  </strong>
+                </div>
+              </div>
+            ) : null}
+            {communityResult?.summary.topThemes.length ? (
+              <div className={styles.communityThemeBlock}>
+                <p className={styles.communityThemeTitle}>Top recurring themes</p>
+                <div className={styles.communityThemeList}>
+                  {communityResult.summary.topThemes.map((theme) => (
+                    <span className={styles.communityTheme} key={theme.label}>
+                      {theme.label} · {theme.mentions}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {communityResult?.community.length ? (
+              <div className={styles.communityList}>
+                {communityResult.community.slice(0, 6).map((post) => (
+                  <article className={styles.communityRow} key={post.id}>
+                    <div className={styles.newsMeta}>
+                      <span>{post.source}</span>
+                      <span>·</span>
+                      <span>{formatTimestamp(post.publishedAt)} KST</span>
+                      <span>·</span>
+                      <span>{formatEngagement(post)}</span>
+                      <span
+                        className={`${styles.sentimentTag} ${
+                          post.sentiment === "positive"
+                            ? styles.sentimentPositive
+                            : post.sentiment === "negative"
+                              ? styles.sentimentNegative
+                              : styles.sentimentNeutral
+                        }`}
+                      >
+                        {formatCommunitySentiment(post.sentiment)}
+                      </span>
+                    </div>
+                    <a
+                      className={styles.newsLink}
+                      href={post.url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {post.title}
+                    </a>
+                    <p className={styles.newsSummary}>{post.excerpt}</p>
+                  </article>
+                ))}
+              </div>
+            ) : isCommunityLoading ? null : (
+              <p className={styles.emptyState}>
+                {isCommunityEnabled
+                  ? "No validated public community posts are available yet."
+                  : "Community collection is disabled by configuration."}
+              </p>
+            )}
+            {unavailableCommunitySources.length ? (
+              <div className={styles.diagnosticPanel}>
+                <p className={styles.diagnosticTitle}>Skipped sources</p>
+                <ul className={styles.diagnosticList}>
+                  {unavailableCommunitySources.map((status) => (
+                    <li key={status.sourceId}>
+                      {formatSourceLabel(status.sourceId)}:{" "}
+                      {status.diagnostics.length
+                        ? status.diagnostics.map((diagnostic) => diagnostic.message).join(" ")
+                        : "Unavailable at runtime."}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {communityResult?.diagnostics.length ? (
+              <div className={styles.diagnosticPanel}>
+                <p className={styles.diagnosticTitle}>Normalization diagnostics</p>
+                <ul className={styles.diagnosticList}>
+                  {communityResult.diagnostics.slice(0, 3).map((diagnostic, index) => (
+                    <li key={`${diagnostic.code}-${index}`}>{diagnostic.message}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </article>
           {placeholderSections.map((section) => (
             <article className={styles.card} key={section.title}>
               <div className={styles.sectionHeader}>
@@ -648,4 +890,38 @@ function formatSentiment(sentiment: NewsLookupResult["news"][number]["sentiment"
     default:
       return "Neutral";
   }
+}
+
+function formatCommunitySentiment(
+  sentiment: CommunityLookupResult["community"][number]["sentiment"],
+) {
+  switch (sentiment) {
+    case "positive":
+      return "Bullish";
+    case "negative":
+      return "Bearish";
+    default:
+      return "Neutral";
+  }
+}
+
+function formatEngagement(post: CommunityLookupResult["community"][number]) {
+  const likes = post.engagement.likes ?? 0;
+  const comments = post.engagement.comments ?? 0;
+  const total = likes + comments;
+
+  if (total === 0) {
+    return "Engagement low";
+  }
+
+  return `Engagement ${numberFormatter.format(total)} (${numberFormatter.format(
+    likes,
+  )} likes, ${numberFormatter.format(comments)} comments)`;
+}
+
+function formatSourceLabel(sourceId: string) {
+  return sourceId
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }

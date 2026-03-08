@@ -240,7 +240,7 @@
     {
       "id": "US-004",
       "title": "Collect and normalize recent news",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-002",
         "US-003"
@@ -254,13 +254,13 @@
         "Negative case: an article missing a valid URL or publish timestamp is discarded and recorded in diagnostics instead of breaking the list."
       ],
       "startedAt": "2026-03-08T14:13:02.671408+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-03-08T14:13:02.671615+00:00"
+      "completedAt": "2026-03-08T14:28:09.925489+00:00",
+      "updatedAt": "2026-03-08T14:28:09.925308+00:00"
     },
     {
       "id": "US-005",
       "title": "Collect and summarize public community reaction",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-002",
         "US-003"
@@ -272,7 +272,10 @@
         "Aggregate bullish, bearish, and neutral counts plus top recurring themes for the requested stock.",
         "Example: ten normalized posts with six bullish, two neutral, and two bearish yield a visible community summary and theme list.",
         "Negative case: a login-walled, anti-bot-blocked, or terms-disallowed source is marked unavailable and skipped without attempting bypass behavior."
-      ]
+      ],
+      "startedAt": "2026-03-08T14:28:12.108956+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-03-08T14:28:12.109237+00:00"
     },
     {
       "id": "US-006",

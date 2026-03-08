@@ -243,6 +243,10 @@
   grid-column: 1 / -1;
 }
 
+.communityCard {
+  grid-column: 1 / -1;
+}
+
 .sectionHeader {
   display: flex;
   align-items: flex-start;
@@ -319,6 +323,89 @@
   margin: 0;
   color: var(--ink-soft);
   line-height: 1.65;
+}
+
+.communitySummary {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.communityMetric {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.communityMetricLabel {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.communityMetricValue {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.communityMetricValueSmall {
+  font-size: 0.96rem;
+  line-height: 1.55;
+  color: var(--ink-strong);
+}
+
+.communityThemeBlock {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.communityThemeTitle {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.communityThemeList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.communityTheme {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.1);
+  color: var(--accent-strong);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.communityList {
+  display: grid;
+  gap: 14px;
+}
+
+.communityRow {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.58);
 }
 
 .sentimentTag {
@@ -425,6 +512,10 @@
   .sections {
     grid-template-columns: 1fr;
   }
+
+  .communitySummary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -447,5 +538,9 @@
 
   .headline {
     font-size: clamp(2.2rem, 12vw, 3.5rem);
+  }
+
+  .communitySummary {
+    grid-template-columns: 1fr;
   }
 }

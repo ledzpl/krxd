@@ -149,8 +149,23 @@ export const sourceRegistry = sourceRegistrySchema.parse([
     rateLimitNotes: "Reuse quarterly snapshots instead of refetching on every request.",
   },
   {
+    id: "tistory-public-blog-search",
+    name: "Tistory public blog search",
+    category: "community",
+    publicAccessible: true,
+    robotsReviewed: true,
+    loginRequired: false,
+    termsReviewed: true,
+    freshnessExpectation: {
+      value: 8,
+      unit: "hours",
+      description: "Public retail blog reaction should refresh several times during the trading day.",
+    },
+    rateLimitNotes: "Limit requests to a few paginated search calls per stock lookup and rely on short-lived caching.",
+  },
+  {
     id: "public-community-board",
-    name: "Public investor message board",
+    name: "Robots-blocked finance discussion board",
     category: "community",
     publicAccessible: true,
     robotsReviewed: false,
@@ -159,7 +174,7 @@ export const sourceRegistry = sourceRegistrySchema.parse([
     freshnessExpectation: {
       value: 12,
       unit: "hours",
-      description: "Community reaction loses value quickly for short horizons.",
+      description: "Community reaction loses value quickly for short horizons when the source is approved.",
     },
     rateLimitNotes: "Keep this source out of runtime aggregation until reviews are complete.",
   },
