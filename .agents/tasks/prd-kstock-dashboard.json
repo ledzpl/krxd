@@ -202,7 +202,7 @@
     {
       "id": "US-002",
       "title": "Define source policy and normalized data schemas",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
@@ -215,13 +215,13 @@
         "Negative case: any source flagged as loginRequired=true, robotsReviewed=false, or termsReviewed=false is excluded from runtime aggregation."
       ],
       "startedAt": "2026-03-08T13:31:48.185725+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-03-08T13:31:48.186030+00:00"
+      "completedAt": "2026-03-08T13:46:52.285529+00:00",
+      "updatedAt": "2026-03-08T13:46:52.285357+00:00"
     },
     {
       "id": "US-003",
       "title": "Resolve stock codes and collect quote data",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-002"
       ],
@@ -232,7 +232,10 @@
         "Return a source timestamp and source identifier for every quote payload.",
         "Example: code 005930 returns a normalized quote snapshot for Samsung Electronics with capturedAt and market metadata.",
         "Negative case: invalid input such as 123 or an unknown stock code returns a validation error and skips downstream fetches."
-      ]
+      ],
+      "startedAt": "2026-03-08T13:46:54.461108+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-03-08T13:46:54.461375+00:00"
     },
     {
       "id": "US-004",

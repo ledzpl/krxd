@@ -1,6 +1,7 @@
 # Activity Log
 
 ## Run Summary
+- 2026-03-08 22:46:52 | run=20260308-221730-36676 | iter=2 | mode=build | story=US-002 | duration=903s | status=success
 - 2026-03-08 22:31:45 | run=20260308-221730-36676 | iter=1 | mode=build | story=US-001 | duration=855s | status=success
 
 ## Events
@@ -17,3 +18,9 @@
 [2026-03-08 22:42:37] Verified US-002 with schema checks, build, and dev startup
 [2026-03-08 22:45:24] Updated progress log for US-002 and preparing final log commit
 [2026-03-08 22:46:20] Added iteration 2 run summary artifact for US-002
+[2026-03-08 22:46:52] ITERATION 2 end (duration=903s)
+[2026-03-08 22:46:54] ITERATION 3 start (mode=build story=US-003)
+[2026-03-08 22:48:24] Start work on US-003 resolve stock codes and collect quote data
+[2026-03-08 22:48:24] Context audit for US-003: guardrails, errors, PRD, and repo instructions reviewed
+[2026-03-08 23:06:59] Implemented US-003 quote pipeline: KRX stock resolution, Naver quote/trend fetch, API route, and dashboard lookup UI
+[2026-03-08 23:10:54] Verified US-003 with npm run build, API checks for valid and invalid stock codes, and browser validation for live quote and invalid-code flows

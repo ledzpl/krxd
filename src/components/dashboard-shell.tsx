@@ -1,6 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+
+import type { QuoteLookupResult } from "@/lib/normalized-schemas";
 
 import styles from "./dashboard-shell.module.css";
 
@@ -21,6 +23,21 @@ type DashboardShellProps = {
     }>;
   };
 };
+
+type QuoteApiError = {
+  error?: {
+    summary?: string;
+    issues?: Array<{
+      message?: string;
+    }>;
+  };
+};
+
+const numberFormatter = new Intl.NumberFormat("ko-KR");
+const percentFormatter = new Intl.NumberFormat("ko-KR", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 const placeholderSections = [
   {
@@ -91,31 +108,98 @@ const signals = [
 export function DashboardShell({ config }: DashboardShellProps) {
   const [stockCode, setStockCode] = useState("005930");
   const [feedback, setFeedback] = useState(
-    "Use the form to validate the 6-digit stock code entry flow before data collectors arrive.",
+    "Enter a 6-digit Korean stock code to resolve the listing and collect a live quote snapshot.",
   );
   const [isInvalid, setIsInvalid] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [quoteResult, setQuoteResult] = useState<QuoteLookupResult | null>(null);
 
   const sourceSummary = config.enabledSources.map(({ label, enabled }) => ({
     label,
     state: enabled ? "Enabled" : "Disabled",
   }));
 
+  useEffect(() => {
+    void lookupQuote("005930", true);
+  }, []);
+
+  async function lookupQuote(requestedCode: string, isInitialLoad = false) {
+    const normalized = requestedCode.trim();
+
+    setIsLoading(true);
+    setIsInvalid(false);
+    setFeedback(
+      isInitialLoad
+        ? `Loading live quote data for ${normalized}...`
+        : `Resolving ${normalized} and collecting current market data...`,
+    );
+
+    try {
+      const response = await fetch(
+        `/api/quote?stockCode=${encodeURIComponent(normalized)}`,
+        {
+          cache: "no-store",
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | QuoteLookupResult
+        | QuoteApiError
+        | null;
+
+      if (
+        !response.ok ||
+        !payload ||
+        typeof payload !== "object" ||
+        !("quote" in payload)
+      ) {
+        const apiError = payload as QuoteApiError | null;
+        const issueMessage = apiError?.error?.issues?.[0]?.message;
+        const summary = apiError?.error?.summary;
+
+        setQuoteResult(null);
+        setIsInvalid(response.status === 400);
+        setFeedback(
+          issueMessage ??
+            summary ??
+            `Quote lookup failed with status ${response.status}.`,
+        );
+        return;
+      }
+
+      setQuoteResult(payload);
+      setFeedback(
+        `Resolved ${payload.companyName} (${payload.market}) via ${payload.resolution.source} and captured ${payload.quote.trendPoints.length} recent price points from ${payload.quote.source}.`,
+      );
+    } catch {
+      setQuoteResult(null);
+      setIsInvalid(false);
+      setFeedback("Quote lookup failed because the source request could not be completed.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     const normalized = stockCode.trim();
 
     if (!/^\d{6}$/.test(normalized)) {
+      setQuoteResult(null);
       setIsInvalid(true);
       setFeedback("Enter exactly six numeric digits. Example: 005930.");
       return;
     }
 
-    setIsInvalid(false);
-    setFeedback(
-      `Stock code ${normalized} is queued for the upcoming data stories. This scaffold keeps the dashboard shell and validation flow ready.`,
-    );
+    void lookupQuote(normalized);
   }
+
+  const companySummary = quoteResult
+    ? `${quoteResult.companyName} · ${quoteResult.market}`
+    : "Awaiting lookup";
+  const companySummaryCopy = quoteResult
+    ? `${quoteResult.resolution.source} confirmed the listing at ${formatTimestamp(quoteResult.resolution.capturedAt)} KST. ${quoteResult.quote.source} captured ${quoteResult.quote.trendPoints.length} recent 5-minute points at ${formatTimestamp(quoteResult.quote.capturedAt)} KST.`
+    : "Company name, market, source ids, and the latest quote timestamp appear here after a successful lookup.";
+  const changeTone = getTone(quoteResult?.quote.changeAmount ?? 0);
 
   return (
     <main className={styles.page}>
@@ -125,9 +209,9 @@ export function DashboardShell({ config }: DashboardShellProps) {
             <p className={styles.eyebrow}>Public Next.js dashboard scaffold</p>
             <h1 className={styles.headline}>Enter a Korean stock code.</h1>
             <p className={styles.lede}>
-              This first story wires the dashboard shell, operational docs, deployment
-              basics, and environment validation so later source collectors can plug in
-              without more setup work.
+              The dashboard now validates the 6-digit stock code, resolves the listed
+              company and market, and collects a normalized public quote snapshot before
+              downstream stories add more evidence.
             </p>
 
             <form className={styles.form} noValidate onSubmit={handleSubmit}>
@@ -142,13 +226,14 @@ export function DashboardShell({ config }: DashboardShellProps) {
                   value={stockCode}
                   onChange={(event) => setStockCode(event.target.value.replace(/\D/g, ""))}
                 />
-                <button className={styles.submit} type="submit">
-                  Preview dashboard
+                <button className={styles.submit} disabled={isLoading} type="submit">
+                  {isLoading ? "Loading quote..." : "Fetch quote"}
                 </button>
               </div>
               <p className={styles.hint}>
-                Local validation is active now. Market quote, news, community,
-                disclosure, and financial collection will be added in later stories.
+                The quote source resolves company metadata, latest price, change,
+                change percentage, volume, and a recent trend series. Later stories add
+                news, community, disclosures, and financials.
               </p>
               <p
                 aria-live="polite"
@@ -176,16 +261,41 @@ export function DashboardShell({ config }: DashboardShellProps) {
         <section className={styles.summaryBand} aria-label="Summary placeholders">
           <article className={`${styles.card} ${styles.metricLead}`}>
             <p className={styles.metricTitle}>Company summary</p>
-            <p className={styles.metricValue}>Awaiting lookup</p>
-            <p className={styles.metricCopy}>
-              Company name, market, latest price, and last updated timestamp will appear
-              here after quote resolution is connected.
-            </p>
+            <p className={styles.metricValue}>{companySummary}</p>
+            <p className={styles.metricCopy}>{companySummaryCopy}</p>
           </article>
-          <MetricCard label="Current price" value="--" copy="Normalized quote snapshot" />
-          <MetricCard label="Change" value="--" copy="Absolute move" />
-          <MetricCard label="Change %" value="--" copy="Relative move" />
-          <MetricCard label="Source health" value="5" copy="Configured source categories" />
+          <MetricCard
+            label="Current price"
+            value={
+              quoteResult
+                ? `${numberFormatter.format(quoteResult.quote.currentPrice)} KRW`
+                : "--"
+            }
+            copy="Normalized quote snapshot"
+          />
+          <MetricCard
+            label="Change"
+            tone={changeTone}
+            value={
+              quoteResult ? `${formatSignedNumber(quoteResult.quote.changeAmount)} KRW` : "--"
+            }
+            copy="Absolute move versus the prior close"
+          />
+          <MetricCard
+            label="Change %"
+            tone={changeTone}
+            value={quoteResult ? formatSignedPercent(quoteResult.quote.changePercent) : "--"}
+            copy="Relative move versus the prior close"
+          />
+          <MetricCard
+            label="Volume"
+            value={quoteResult ? numberFormatter.format(quoteResult.quote.volume) : "--"}
+            copy={
+              quoteResult
+                ? `${quoteResult.quote.trendPoints.length} recent trend points ready`
+                : "Accumulated trading volume"
+            }
+          />
         </section>
 
         <section className={styles.signals} aria-label="Signal placeholders">
@@ -269,14 +379,78 @@ type MetricCardProps = {
   label: string;
   value: string;
   copy: string;
+  tone?: "neutral" | "positive" | "negative";
 };
 
-function MetricCard({ label, value, copy }: MetricCardProps) {
+function MetricCard({
+  label,
+  value,
+  copy,
+  tone = "neutral",
+}: MetricCardProps) {
   return (
     <article className={`${styles.card} ${styles.metricLead}`}>
       <p className={styles.metricTitle}>{label}</p>
-      <p className={styles.metricValue}>{value}</p>
+      <p
+        className={`${styles.metricValue} ${
+          tone === "positive"
+            ? styles.metricPositive
+            : tone === "negative"
+              ? styles.metricNegative
+              : ""
+        }`}
+      >
+        {value}
+      </p>
       <p className={styles.metricCopy}>{copy}</p>
     </article>
   );
+}
+
+function formatSignedNumber(value: number) {
+  const absoluteValue = numberFormatter.format(Math.abs(value));
+
+  if (value > 0) {
+    return `+${absoluteValue}`;
+  }
+
+  if (value < 0) {
+    return `-${absoluteValue}`;
+  }
+
+  return absoluteValue;
+}
+
+function formatSignedPercent(value: number) {
+  const absoluteValue = percentFormatter.format(Math.abs(value));
+
+  if (value > 0) {
+    return `+${absoluteValue}%`;
+  }
+
+  if (value < 0) {
+    return `-${absoluteValue}%`;
+  }
+
+  return `${absoluteValue}%`;
+}
+
+function formatTimestamp(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Seoul",
+  }).format(new Date(value));
+}
+
+function getTone(value: number): "neutral" | "positive" | "negative" {
+  if (value > 0) {
+    return "positive";
+  }
+
+  if (value < 0) {
+    return "negative";
+  }
+
+  return "neutral";
 }

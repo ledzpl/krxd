@@ -118,6 +118,19 @@ export const quoteSnapshotSchema = z.object({
   capturedAt: isoTimestampSchema,
 });
 
+export const sourceCaptureSchema = z.object({
+  source: sourceIdSchema,
+  capturedAt: isoTimestampSchema,
+});
+
+export const quoteLookupResultSchema = z.object({
+  stockCode: stockCodeSchema,
+  companyName: nonEmptyStringSchema,
+  market: nonEmptyStringSchema,
+  resolution: sourceCaptureSchema,
+  quote: quoteSnapshotSchema,
+});
+
 export const newsItemSchema = z.object({
   id: nonEmptyStringSchema,
   source: sourceIdSchema,
@@ -213,6 +226,8 @@ export type SourceDiagnostic = z.infer<typeof sourceDiagnosticSchema>;
 export type SourceStatus = z.infer<typeof sourceStatusSchema>;
 export type StockQuery = z.infer<typeof stockQuerySchema>;
 export type QuoteSnapshot = z.infer<typeof quoteSnapshotSchema>;
+export type SourceCapture = z.infer<typeof sourceCaptureSchema>;
+export type QuoteLookupResult = z.infer<typeof quoteLookupResultSchema>;
 export type NewsItem = z.infer<typeof newsItemSchema>;
 export type CommunityPost = z.infer<typeof communityPostSchema>;
 export type DisclosureItem = z.infer<typeof disclosureItemSchema>;

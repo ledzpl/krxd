@@ -74,8 +74,23 @@ const runtimeExclusionMessages: Record<RuntimeExclusionReason, string> = {
 
 export const sourceRegistry = sourceRegistrySchema.parse([
   {
-    id: "krx-market-summary",
-    name: "Public KRX market summary",
+    id: "krx-stock-code-resolver",
+    name: "KRX listed issue resolver",
+    category: "quote",
+    publicAccessible: true,
+    robotsReviewed: true,
+    loginRequired: false,
+    termsReviewed: true,
+    freshnessExpectation: {
+      value: 1,
+      unit: "days",
+      description: "Listed issue metadata changes infrequently but should be refreshed regularly.",
+    },
+    rateLimitNotes: "Cache lookup results per stock code and avoid repeated autocomplete-style bursts.",
+  },
+  {
+    id: "naver-domestic-market-data",
+    name: "Naver domestic market data",
     category: "quote",
     publicAccessible: true,
     robotsReviewed: true,
@@ -84,9 +99,9 @@ export const sourceRegistry = sourceRegistrySchema.parse([
     freshnessExpectation: {
       value: 15,
       unit: "minutes",
-      description: "Refresh near real time during market hours.",
+      description: "Refresh near real time during market hours and reuse short-lived quote snapshots.",
     },
-    rateLimitNotes: "Use a short cache and avoid burst polling per stock code.",
+    rateLimitNotes: "Keep a short cache, request one stock at a time, and avoid tight polling loops.",
   },
   {
     id: "public-news-search",
