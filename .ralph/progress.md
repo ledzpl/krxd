@@ -111,6 +111,44 @@ Run summary: /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-3.m
   - KRX `isuCore.cmd` is reliable for listed issue resolution, while Naver polling and chart APIs provide quote and minute-series data without login.
   - Gotchas encountered
   - Naver's realtime payload is EUC-KR encoded JSON, so it must be decoded explicitly before parsing.
-  - Useful context
+- Useful context
   - The `minute5` chart endpoint tolerates weekend end dates, which keeps recent trend fetches stable outside trading hours.
+---
+## [2026-03-08 23:27:04 KST] - US-004: Collect and normalize recent news
+Thread: 
+Run: 20260308-221730-36676 (iteration 4)
+Run log: /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-4.log
+Run summary: /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-4.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 4bf589a feat(news): collect and normalize headlines
+- Post-commit status: `clean`
+- Verification:
+  - Command: `npm run build` -> PASS
+  - Command: `npm run dev` -> PASS
+  - Command: `curl -sS "http://localhost:3000/api/news?stockCode=005930&companyName=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90"` -> PASS
+  - Command: `curl -sS "http://localhost:3000/api/news?stockCode=005930&companyName="` -> PASS
+  - Command: `curl -sS "http://localhost:3000/api/quote?stockCode=005930"` -> PASS
+  - Command: `dev-browser verification against http://localhost:3000/` -> PASS
+- Files changed:
+  - /Users/watson.park/t/.agents/tasks/prd-kstock-dashboard.json
+  - /Users/watson.park/t/.ralph/activity.log
+  - /Users/watson.park/t/.ralph/errors.log
+  - /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-3.md
+  - /Users/watson.park/t/src/app/api/news/route.ts
+  - /Users/watson.park/t/src/components/dashboard-shell.module.css
+  - /Users/watson.park/t/src/components/dashboard-shell.tsx
+  - /Users/watson.park/t/src/lib/normalized-schemas.ts
+  - /Users/watson.park/t/src/lib/stock-news.ts
+- What was implemented
+  - Added a server-side news collector that queries the approved public news source with stock code plus resolved company name, normalizes title/publisher/publishedAt/url/summary/sentiment, and discards invalid rows into diagnostics.
+  - Added duplicate suppression using canonicalized article URLs plus normalized publisher-title keys so repeated or mirrored entries only render once.
+  - Added `/api/news` and replaced the dashboard News placeholder with a live panel that loads after quote resolution, shows normalized articles, and resets cleanly on invalid input.
+- **Learnings for future iterations:**
+  - Patterns discovered
+  - Naver's news search results expose stable enough title, summary, publisher, and relative-time text in the rendered DOM to normalize without logging in.
+  - Gotchas encountered
+  - `next-env.d.ts` can drift after dev verification; restore it before the final commit so generated noise does not leak into story commits.
+  - Useful context
+  - The quote response already carries the resolved company name, so downstream collectors can reuse that value instead of re-resolving the stock for every browser-driven request.
 ---
