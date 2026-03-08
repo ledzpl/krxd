@@ -184,7 +184,7 @@
     {
       "id": "US-001",
       "title": "Scaffold the public Next.js dashboard project",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want a new Next.js project with the required packages, scripts, environment placeholders, and deployment basics so the dashboard can be built without setup guesswork.",
       "acceptanceCriteria": [
@@ -196,13 +196,13 @@
         "Negative case: if a required non-secret env value is missing or invalid, the app fails with a descriptive startup or runtime validation message rather than silent fallback."
       ],
       "startedAt": "2026-03-08T13:17:30.915488+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-03-08T13:17:30.915680+00:00"
+      "completedAt": "2026-03-08T13:31:45.838711+00:00",
+      "updatedAt": "2026-03-08T13:31:45.838512+00:00"
     },
     {
       "id": "US-002",
       "title": "Define source policy and normalized data schemas",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-001"
       ],
@@ -213,7 +213,10 @@
         "Ensure validation errors are returned in a structured way that can be surfaced in source diagnostics.",
         "Example: a KIND disclosure page is normalized into a valid DisclosureItem with title, publishedAt, url, and importance.",
         "Negative case: any source flagged as loginRequired=true, robotsReviewed=false, or termsReviewed=false is excluded from runtime aggregation."
-      ]
+      ],
+      "startedAt": "2026-03-08T13:31:48.185725+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-03-08T13:31:48.186030+00:00"
     },
     {
       "id": "US-003",

@@ -1,6 +1,7 @@
 # Activity Log
 
 ## Run Summary
+- 2026-03-08 22:31:45 | run=20260308-221730-36676 | iter=1 | mode=build | story=US-001 | duration=855s | status=success
 
 ## Events
 
@@ -9,3 +10,8 @@
 [2026-03-08 22:23:32] Implemented US-001 scaffold files: Next.js app, env validation, docs, and placeholder dashboard UI
 [2026-03-08 22:26:41] Verified US-001 in browser and fixed form validation behavior surfaced during browser testing
 [2026-03-08 22:29:57] Updated progress log for US-001 and preparing final log commit
+[2026-03-08 22:31:45] ITERATION 1 end (duration=855s)
+[2026-03-08 22:31:48] ITERATION 2 start (mode=build story=US-002)
+[2026-03-08 22:35:15] Start US-002 audit and implementation
+[2026-03-08 22:41:01] Implemented US-002 schema, source registry, and KIND disclosure normalizer
+[2026-03-08 22:42:37] Verified US-002 with schema checks, build, and dev startup
