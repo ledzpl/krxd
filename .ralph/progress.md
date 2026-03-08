@@ -75,3 +75,42 @@ Run summary: /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-2.m
   - Useful context
   - `buildSourceDiagnostics()` and `getRuntimeAggregationSources()` now provide the shared gate for later collectors and dashboard diagnostics.
 ---
+## [2026-03-08 23:11:54 KST] - US-003: Resolve stock codes and collect quote data
+Thread: 
+Run: 20260308-221730-36676 (iteration 3)
+Run log: /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-3.log
+Run summary: /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-3.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 8ad803c feat(quote): resolve codes and load market data
+- Post-commit status: `clean`
+- Verification:
+  - Command: `npm run build` -> PASS
+  - Command: `npm run dev` -> PASS
+  - Command: `curl -sS 'http://localhost:3000/api/quote?stockCode=005930'` -> PASS
+  - Command: `curl -sS -i 'http://localhost:3000/api/quote?stockCode=123'` -> PASS
+  - Command: `curl -sS -i 'http://localhost:3000/api/quote?stockCode=999999'` -> PASS
+  - Command: `dev-browser verification against http://localhost:3000/` -> PASS
+- Files changed:
+  - /Users/watson.park/t/.agents/tasks/prd-kstock-dashboard.json
+  - /Users/watson.park/t/.ralph/activity.log
+  - /Users/watson.park/t/.ralph/errors.log
+  - /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-2.md
+  - /Users/watson.park/t/src/app/api/quote/route.ts
+  - /Users/watson.park/t/src/components/dashboard-shell.module.css
+  - /Users/watson.park/t/src/components/dashboard-shell.tsx
+  - /Users/watson.park/t/src/lib/normalized-schemas.ts
+  - /Users/watson.park/t/src/lib/source-registry.ts
+  - /Users/watson.park/t/src/lib/stock-quote.ts
+- What was implemented
+  - Added a server-side quote lookup service that validates 6-digit stock codes, resolves company name and market from KRX, and normalizes current price, change, change percent, volume, trend points, and source timestamps from public Naver endpoints.
+  - Added `/api/quote` with structured validation errors so malformed or unknown stock codes stop before downstream fetches.
+  - Updated the dashboard to load a live quote for `005930`, surface source ids and timestamps, and show invalid-input and unknown-code failures in the UI.
+- **Learnings for future iterations:**
+  - Patterns discovered
+  - KRX `isuCore.cmd` is reliable for listed issue resolution, while Naver polling and chart APIs provide quote and minute-series data without login.
+  - Gotchas encountered
+  - Naver's realtime payload is EUC-KR encoded JSON, so it must be decoded explicitly before parsing.
+  - Useful context
+  - The `minute5` chart endpoint tolerates weekend end dates, which keeps recent trend fetches stable outside trading hours.
+---
