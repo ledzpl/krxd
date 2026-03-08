@@ -239,6 +239,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.newsCard {
+  grid-column: 1 / -1;
+}
+
 .sectionHeader {
   display: flex;
   align-items: flex-start;
@@ -268,6 +272,117 @@
   color: var(--ink-soft);
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.newsStatus {
+  margin: 0 0 16px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.newsList {
+  display: grid;
+  gap: 14px;
+}
+
+.newsRow {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.newsMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.newsLink {
+  color: var(--ink-strong);
+  font-family: var(--font-display);
+  font-size: 1.18rem;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+}
+
+.newsLink:hover {
+  color: var(--accent-strong);
+}
+
+.newsSummary {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.65;
+}
+
+.sentimentTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sentimentPositive {
+  background: rgba(15, 118, 110, 0.12);
+  color: var(--accent-strong);
+}
+
+.sentimentNegative {
+  background: rgba(154, 52, 18, 0.12);
+  color: var(--warning);
+}
+
+.sentimentMixed {
+  background: rgba(14, 165, 233, 0.12);
+  color: rgba(3, 105, 161, 1);
+}
+
+.sentimentNeutral {
+  background: rgba(15, 23, 42, 0.07);
+  color: var(--ink-soft);
+}
+
+.emptyState {
+  margin: 0;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px dashed rgba(15, 23, 42, 0.12);
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.diagnosticPanel {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(14, 165, 233, 0.12);
+  background: rgba(240, 249, 255, 0.7);
+}
+
+.diagnosticTitle {
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.diagnosticList {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink-soft);
+  line-height: 1.6;
 }
 
 .placeholderList {

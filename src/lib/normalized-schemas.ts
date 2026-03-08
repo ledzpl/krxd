@@ -142,6 +142,14 @@ export const newsItemSchema = z.object({
   sentiment: sentimentSchema,
 });
 
+export const newsLookupResultSchema = z.object({
+  stockCode: stockCodeSchema,
+  companyName: nonEmptyStringSchema,
+  source: sourceCaptureSchema,
+  news: z.array(newsItemSchema),
+  diagnostics: z.array(sourceDiagnosticSchema).default([]),
+});
+
 export const communityPostSchema = z.object({
   id: nonEmptyStringSchema,
   source: sourceIdSchema,
@@ -229,6 +237,7 @@ export type QuoteSnapshot = z.infer<typeof quoteSnapshotSchema>;
 export type SourceCapture = z.infer<typeof sourceCaptureSchema>;
 export type QuoteLookupResult = z.infer<typeof quoteLookupResultSchema>;
 export type NewsItem = z.infer<typeof newsItemSchema>;
+export type NewsLookupResult = z.infer<typeof newsLookupResultSchema>;
 export type CommunityPost = z.infer<typeof communityPostSchema>;
 export type DisclosureItem = z.infer<typeof disclosureItemSchema>;
 export type FinancialSnapshot = z.infer<typeof financialSnapshotSchema>;

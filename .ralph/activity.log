@@ -1,6 +1,7 @@
 # Activity Log
 
 ## Run Summary
+- 2026-03-08 23:13:00 | run=20260308-221730-36676 | iter=3 | mode=build | story=US-003 | duration=1566s | status=success
 - 2026-03-08 22:46:52 | run=20260308-221730-36676 | iter=2 | mode=build | story=US-002 | duration=903s | status=success
 - 2026-03-08 22:31:45 | run=20260308-221730-36676 | iter=1 | mode=build | story=US-001 | duration=855s | status=success
 
@@ -25,3 +26,9 @@
 [2026-03-08 23:06:59] Implemented US-003 quote pipeline: KRX stock resolution, Naver quote/trend fetch, API route, and dashboard lookup UI
 [2026-03-08 23:10:54] Verified US-003 with npm run build, API checks for valid and invalid stock codes, and browser validation for live quote and invalid-code flows
 [2026-03-08 23:12:26] Updated progress log for US-003 with commit and verification details
+[2026-03-08 23:13:00] ITERATION 3 end (duration=1566s)
+[2026-03-08 23:13:02] ITERATION 4 start (mode=build story=US-004)
+[2026-03-08 23:17:31] US-004 implementation: start news collector, API route, and dashboard integration
+[2026-03-08 23:22:20] US-004 implementation: added news collector, route, and dashboard news rendering
+[2026-03-08 23:22:38] US-004 verification: build passed, starting dev server and runtime checks
+[2026-03-08 23:25:42] US-004 verification: build, API checks, mocked normalization logic review, and browser validation passed

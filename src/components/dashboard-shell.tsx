@@ -2,7 +2,10 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-import type { QuoteLookupResult } from "@/lib/normalized-schemas";
+import type {
+  NewsLookupResult,
+  QuoteLookupResult,
+} from "@/lib/normalized-schemas";
 
 import styles from "./dashboard-shell.module.css";
 
@@ -33,6 +36,15 @@ type QuoteApiError = {
   };
 };
 
+type NewsApiError = {
+  error?: {
+    summary?: string;
+    issues?: Array<{
+      message?: string;
+    }>;
+  };
+};
+
 const numberFormatter = new Intl.NumberFormat("ko-KR");
 const percentFormatter = new Intl.NumberFormat("ko-KR", {
   minimumFractionDigits: 2,
@@ -40,15 +52,6 @@ const percentFormatter = new Intl.NumberFormat("ko-KR", {
 });
 
 const placeholderSections = [
-  {
-    title: "News",
-    badge: "Queued for US-004",
-    copy: "Recent headlines, summaries, sentiment, and publisher timestamps will land here.",
-    rows: [
-      ["Earnings headline placeholder", "Summary, publisher, sentiment"],
-      ["Macro event placeholder", "Timestamps and deduped coverage"],
-    ],
-  },
   {
     title: "Community Reaction",
     badge: "Queued for US-005",
@@ -77,6 +80,9 @@ const placeholderSections = [
     ],
   },
 ];
+
+const defaultNewsFeedback =
+  "Recent headlines, summaries, sentiment, and publisher timestamps will appear after a successful quote lookup.";
 
 const signals = [
   {
@@ -112,22 +118,106 @@ export function DashboardShell({ config }: DashboardShellProps) {
   );
   const [isInvalid, setIsInvalid] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isNewsLoading, setIsNewsLoading] = useState(false);
   const [quoteResult, setQuoteResult] = useState<QuoteLookupResult | null>(null);
+  const [newsResult, setNewsResult] = useState<NewsLookupResult | null>(null);
+  const [newsFeedback, setNewsFeedback] = useState(defaultNewsFeedback);
 
   const sourceSummary = config.enabledSources.map(({ label, enabled }) => ({
     label,
     state: enabled ? "Enabled" : "Disabled",
   }));
+  const isNewsEnabled =
+    config.enabledSources.find((source) => source.label === "News")?.enabled ?? false;
 
   useEffect(() => {
     void lookupQuote("005930", true);
   }, []);
+
+  function resetNewsState(message = defaultNewsFeedback) {
+    setIsNewsLoading(false);
+    setNewsResult(null);
+    setNewsFeedback(message);
+  }
+
+  async function lookupNews(
+    resolvedStockCode: string,
+    companyName: string,
+    isInitialLoad = false,
+  ) {
+    if (!isNewsEnabled) {
+      resetNewsState("News collection is disabled by configuration.");
+      return;
+    }
+
+    setIsNewsLoading(true);
+    setNewsFeedback(
+      isInitialLoad
+        ? `Loading recent news for ${companyName} (${resolvedStockCode})...`
+        : `Collecting recent news for ${companyName}...`,
+    );
+
+    try {
+      const response = await fetch(
+        `/api/news?stockCode=${encodeURIComponent(resolvedStockCode)}&companyName=${encodeURIComponent(companyName)}`,
+        {
+          cache: "no-store",
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | NewsLookupResult
+        | NewsApiError
+        | null;
+
+      if (
+        !response.ok ||
+        !payload ||
+        typeof payload !== "object" ||
+        !("news" in payload)
+      ) {
+        const apiError = payload as NewsApiError | null;
+        const issueMessage = apiError?.error?.issues?.[0]?.message;
+        const summary = apiError?.error?.summary;
+
+        setNewsResult(null);
+        setNewsFeedback(
+          issueMessage ??
+            summary ??
+            `News lookup failed with status ${response.status}.`,
+        );
+        return;
+      }
+
+      const discardedCount = payload.diagnostics.filter((diagnostic) =>
+        diagnostic.code.startsWith("discarded-"),
+      ).length;
+
+      setNewsResult(payload);
+      setNewsFeedback(
+        payload.news.length > 0
+          ? `Loaded ${payload.news.length} recent articles via ${payload.source.source}${discardedCount > 0 ? ` with ${discardedCount} discarded during normalization.` : "."}`
+          : discardedCount > 0
+            ? "No valid recent articles remained after normalization."
+            : `No recent articles were returned for ${companyName}.`,
+      );
+    } catch {
+      setNewsResult(null);
+      setNewsFeedback("News lookup failed because the source request could not be completed.");
+    } finally {
+      setIsNewsLoading(false);
+    }
+  }
 
   async function lookupQuote(requestedCode: string, isInitialLoad = false) {
     const normalized = requestedCode.trim();
 
     setIsLoading(true);
     setIsInvalid(false);
+    resetNewsState(
+      isNewsEnabled
+        ? "Recent news will load after a successful quote lookup."
+        : "News collection is disabled by configuration.",
+    );
     setFeedback(
       isInitialLoad
         ? `Loading live quote data for ${normalized}...`
@@ -158,6 +248,11 @@ export function DashboardShell({ config }: DashboardShellProps) {
 
         setQuoteResult(null);
         setIsInvalid(response.status === 400);
+        resetNewsState(
+          isNewsEnabled
+            ? "Resolve a valid stock code to load recent news."
+            : "News collection is disabled by configuration.",
+        );
         setFeedback(
           issueMessage ??
             summary ??
@@ -167,12 +262,18 @@ export function DashboardShell({ config }: DashboardShellProps) {
       }
 
       setQuoteResult(payload);
+      void lookupNews(payload.stockCode, payload.companyName, isInitialLoad);
       setFeedback(
         `Resolved ${payload.companyName} (${payload.market}) via ${payload.resolution.source} and captured ${payload.quote.trendPoints.length} recent price points from ${payload.quote.source}.`,
       );
     } catch {
       setQuoteResult(null);
       setIsInvalid(false);
+      resetNewsState(
+        isNewsEnabled
+          ? "Resolve a valid stock code to load recent news."
+          : "News collection is disabled by configuration.",
+      );
       setFeedback("Quote lookup failed because the source request could not be completed.");
     } finally {
       setIsLoading(false);
@@ -185,6 +286,11 @@ export function DashboardShell({ config }: DashboardShellProps) {
 
     if (!/^\d{6}$/.test(normalized)) {
       setQuoteResult(null);
+      resetNewsState(
+        isNewsEnabled
+          ? "Resolve a valid stock code to load recent news."
+          : "News collection is disabled by configuration.",
+      );
       setIsInvalid(true);
       setFeedback("Enter exactly six numeric digits. Example: 005930.");
       return;
@@ -210,8 +316,9 @@ export function DashboardShell({ config }: DashboardShellProps) {
             <h1 className={styles.headline}>Enter a Korean stock code.</h1>
             <p className={styles.lede}>
               The dashboard now validates the 6-digit stock code, resolves the listed
-              company and market, and collects a normalized public quote snapshot before
-              downstream stories add more evidence.
+              company and market, collects a normalized public quote snapshot, and
+              pulls recent deduplicated news before downstream stories add more
+              evidence.
             </p>
 
             <form className={styles.form} noValidate onSubmit={handleSubmit}>
@@ -232,8 +339,9 @@ export function DashboardShell({ config }: DashboardShellProps) {
               </div>
               <p className={styles.hint}>
                 The quote source resolves company metadata, latest price, change,
-                change percentage, volume, and a recent trend series. Later stories add
-                news, community, disclosures, and financials.
+                change percentage, volume, and a recent trend series. The approved
+                public news source adds recent headlines, summaries, timestamps, and
+                sentiment. Later stories add community, disclosures, and financials.
               </p>
               <p
                 aria-live="polite"
@@ -321,6 +429,78 @@ export function DashboardShell({ config }: DashboardShellProps) {
         </section>
 
         <section className={styles.sections} aria-label="Dashboard sections">
+          <article className={`${styles.card} ${styles.newsCard}`}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>News</h2>
+                <p className={styles.sectionCopy}>
+                  Recent stock-related coverage is normalized into title, publisher,
+                  published time, short summary, URL, and a simple sentiment label.
+                </p>
+              </div>
+              <span className={styles.badge}>
+                {!isNewsEnabled
+                  ? "Disabled"
+                  : isNewsLoading
+                    ? "Loading"
+                    : newsResult
+                      ? `${newsResult.news.length} live`
+                      : "Live"}
+              </span>
+            </div>
+            <p className={styles.newsStatus}>{newsFeedback}</p>
+            {newsResult?.news.length ? (
+              <div className={styles.newsList}>
+                {newsResult.news.map((article) => (
+                  <article className={styles.newsRow} key={article.id}>
+                    <div className={styles.newsMeta}>
+                      <span>{article.publisher}</span>
+                      <span>·</span>
+                      <span>{formatTimestamp(article.publishedAt)} KST</span>
+                      <span
+                        className={`${styles.sentimentTag} ${
+                          article.sentiment === "positive"
+                            ? styles.sentimentPositive
+                            : article.sentiment === "negative"
+                              ? styles.sentimentNegative
+                              : article.sentiment === "mixed"
+                                ? styles.sentimentMixed
+                                : styles.sentimentNeutral
+                        }`}
+                      >
+                        {formatSentiment(article.sentiment)}
+                      </span>
+                    </div>
+                    <a
+                      className={styles.newsLink}
+                      href={article.url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {article.title}
+                    </a>
+                    <p className={styles.newsSummary}>{article.summary}</p>
+                  </article>
+                ))}
+              </div>
+            ) : isNewsLoading ? null : (
+              <p className={styles.emptyState}>
+                {isNewsEnabled
+                  ? "No validated recent articles are available yet."
+                  : "News collection is disabled by configuration."}
+              </p>
+            )}
+            {newsResult?.diagnostics.length ? (
+              <div className={styles.diagnosticPanel}>
+                <p className={styles.diagnosticTitle}>Normalization diagnostics</p>
+                <ul className={styles.diagnosticList}>
+                  {newsResult.diagnostics.slice(0, 3).map((diagnostic, index) => (
+                    <li key={`${diagnostic.code}-${index}`}>{diagnostic.message}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </article>
           {placeholderSections.map((section) => (
             <article className={styles.card} key={section.title}>
               <div className={styles.sectionHeader}>
@@ -453,4 +633,19 @@ function getTone(value: number): "neutral" | "positive" | "negative" {
   }
 
   return "neutral";
+}
+
+function formatSentiment(sentiment: NewsLookupResult["news"][number]["sentiment"]) {
+  switch (sentiment) {
+    case "positive":
+      return "Positive";
+    case "negative":
+      return "Negative";
+    case "mixed":
+      return "Mixed";
+    case "unknown":
+      return "Unknown";
+    default:
+      return "Neutral";
+  }
 }
