@@ -149,6 +149,44 @@ Run summary: /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-4.m
   - Naver's news search results expose stable enough title, summary, publisher, and relative-time text in the rendered DOM to normalize without logging in.
   - Gotchas encountered
   - `next-env.d.ts` can drift after dev verification; restore it before the final commit so generated noise does not leak into story commits.
-  - Useful context
+- Useful context
   - The quote response already carries the resolved company name, so downstream collectors can reuse that value instead of re-resolving the stock for every browser-driven request.
+---
+## [2026-03-08 23:49:10 KST] - US-005: Collect and summarize public community reaction
+Thread: 
+Run: 20260308-221730-36676 (iteration 5)
+Run log: /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-5.log
+Run summary: /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-5.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: a51f3fe feat(community): add public reaction summary
+- Post-commit status: `clean`
+- Verification:
+  - Command: `npm run build` -> PASS
+  - Command: `npm run dev` -> PASS
+  - Command: `curl -s 'http://localhost:3000/api/community?stockCode=005930&companyName=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90' | jq '{totalPosts: .summary.totalPosts, bullish: .summary.bullishCount, neutral: .summary.neutralCount, bearish: .summary.bearishCount, skippedSources: [.sourceStatus[] | select(.status != "ready") | .sourceId]}'` -> PASS
+  - Command: `dev-browser verification against http://localhost:3000/` -> PASS
+- Files changed:
+  - /Users/watson.park/t/.agents/tasks/prd-kstock-dashboard.json
+  - /Users/watson.park/t/.ralph/activity.log
+  - /Users/watson.park/t/.ralph/errors.log
+  - /Users/watson.park/t/.ralph/progress.md
+  - /Users/watson.park/t/.ralph/runs/run-20260308-221730-36676-iter-4.md
+  - /Users/watson.park/t/src/app/api/community/route.ts
+  - /Users/watson.park/t/src/components/dashboard-shell.module.css
+  - /Users/watson.park/t/src/components/dashboard-shell.tsx
+  - /Users/watson.park/t/src/lib/normalized-schemas.ts
+  - /Users/watson.park/t/src/lib/source-registry.ts
+  - /Users/watson.park/t/src/lib/stock-community.ts
+- What was implemented
+  - Added a server-side community collector that queries the approved public Tistory search endpoint, normalizes post title/excerpt/source/publishedAt/url/engagement/sentiment, and limits the feed to ten stock-specific public posts.
+  - Added community summary aggregation for bullish, bearish, and neutral counts plus recurring themes, and returned source-status diagnostics so login-walled or robots/terms-blocked sources are marked unavailable and skipped.
+  - Replaced the dashboard's community placeholder with a live Community Reaction card that shows counts, themes, normalized posts, skipped-source messages, and diagnostics after quote resolution.
+- **Learnings for future iterations:**
+  - Patterns discovered
+  - Tistory's public `/api/v1/search/posts` endpoint exposes enough metadata to normalize no-login community posts without fetching individual blog pages.
+  - Gotchas encountered
+  - Matching against the visible excerpt window is stricter than matching the full upstream summary and avoids generic investing posts leaking into stock-specific community results.
+  - Useful context
+  - `sourceStatus` from the source registry can be reused directly in later collectors to explain why excluded sources were skipped instead of silently disappearing.
 ---
