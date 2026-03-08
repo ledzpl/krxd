@@ -1,0 +1,358 @@
+{
+  "version": 1,
+  "project": "Korean Stock Direction Dashboard",
+  "overview": "Create a new public Next.js dashboard where an individual investor enters a 6-digit Korean stock code and receives an aggregated view of market quote data, recent news, public community reaction, disclosures, basic financial context, and an explainable directional signal for the period from now to the same-day market close, one week, and one month using only public no-login sources and compliant scraping.",
+  "goals": [
+    "Let a user enter a Korean stock code and view aggregated quote, news, community, disclosure, and financial information on a single page.",
+    "Produce directional signals for 1d, 1w, and 1m horizons with visible confidence, timestamps, and supporting evidence.",
+    "Keep the product usable without login, paid APIs, or private credentials.",
+    "Handle source failures gracefully so partial data still produces a useful dashboard."
+  ],
+  "nonGoals": [
+    "Brokerage, trading, or order execution integration.",
+    "User accounts, subscriptions, or payment flows.",
+    "Use of paid, private, login-required, or API-key-required data providers in v1.",
+    "Training a custom machine-learning model or guaranteeing investment returns.",
+    "Native mobile apps or multi-page portfolio management."
+  ],
+  "successMetrics": [
+    "A user can submit a valid 6-digit stock code and receive a dashboard response in 8 seconds or less under normal network conditions when at least the primary quote source and two additional source categories respond within timeout.",
+    "The result includes directional signals for 1d, 1w, and 1m with confidence, top reasons, and source timestamps.",
+    "At least three source categories are displayed when publicly available and responsive for the requested stock.",
+    "If one or more sources fail, the UI still renders partial results with explicit warnings instead of a blank page.",
+    "Production build succeeds with npm run build."
+  ],
+  "openQuestions": [
+    "Which exact public community sources pass robots.txt and terms-of-service review at implementation time and should be approved for v1?",
+    "What production host should be used for the first deployment if not Vercel?",
+    "What freshness threshold should be configured for quote, news, community, and disclosures in v1?"
+  ],
+  "stack": {
+    "framework": "Next.js App Router with TypeScript",
+    "hosting": "Vercel by default, or any Node-compatible Next.js host",
+    "database": "None in v1; use server-side cache only",
+    "auth": "None; public anonymous access"
+  },
+  "routes": [
+    {
+      "path": "/",
+      "name": "Stock Dashboard",
+      "purpose": "Single public dashboard where the user enters a Korean stock code and reviews aggregated evidence plus directional signals."
+    }
+  ],
+  "uiNotes": [
+    "The only user-facing route is / and it must contain a stock-code input, submit action, and a vertically stacked dashboard layout.",
+    "The page should surface a summary band with company name, market, current price, change, percent change, and last updated time.",
+    "Prediction cards must show 1d, 1w, and 1m outcomes, confidence, and the top evidence behind each score.",
+    "The dashboard must include visible sections for news, community reaction, disclosures, financial summary, and source health.",
+    "Every major section needs explicit empty, loading, success, partial-data, invalid-input, stale-data, and error states.",
+    "Recent searches may be stored only in local browser storage because no auth is included."
+  ],
+  "dataModel": [
+    {
+      "entity": "StockQuery",
+      "fields": [
+        "stockCode",
+        "companyName",
+        "market",
+        "requestedAt"
+      ]
+    },
+    {
+      "entity": "QuoteSnapshot",
+      "fields": [
+        "source",
+        "currentPrice",
+        "changeAmount",
+        "changePercent",
+        "volume",
+        "trendPoints",
+        "capturedAt"
+      ]
+    },
+    {
+      "entity": "NewsItem",
+      "fields": [
+        "id",
+        "source",
+        "title",
+        "summary",
+        "publisher",
+        "publishedAt",
+        "url",
+        "sentiment"
+      ]
+    },
+    {
+      "entity": "CommunityPost",
+      "fields": [
+        "id",
+        "source",
+        "title",
+        "excerpt",
+        "publishedAt",
+        "url",
+        "engagement",
+        "sentiment"
+      ]
+    },
+    {
+      "entity": "DisclosureItem",
+      "fields": [
+        "id",
+        "source",
+        "category",
+        "title",
+        "publishedAt",
+        "url",
+        "importance"
+      ]
+    },
+    {
+      "entity": "FinancialSnapshot",
+      "fields": [
+        "source",
+        "fiscalPeriod",
+        "revenue",
+        "operatingProfit",
+        "netIncome",
+        "eps",
+        "bps",
+        "per",
+        "pbr",
+        "capturedAt"
+      ]
+    },
+    {
+      "entity": "HorizonSignal",
+      "fields": [
+        "horizon",
+        "direction",
+        "score",
+        "confidence",
+        "reasons"
+      ]
+    },
+    {
+      "entity": "DashboardResult",
+      "fields": [
+        "stockCode",
+        "companyName",
+        "market",
+        "analyzedAt",
+        "quote",
+        "news",
+        "community",
+        "disclosures",
+        "financials",
+        "signals",
+        "sourceStatus",
+        "warnings"
+      ]
+    }
+  ],
+  "importFormat": {
+    "description": "This feature does not import files. The dashboard accepts a stock-code request payload from the page and normalizes all fetched data into a single analysis response.",
+    "example": {
+      "stockCode": "005930",
+      "horizons": [
+        "1d",
+        "1w",
+        "1m"
+      ]
+    }
+  },
+  "rules": [
+    "Only use sources that are publicly accessible without login and pass a robots.txt and terms-of-service review.",
+    "Normalize every request around a 6-digit Korean stock code; reject any non-numeric or non-6-digit input before fetching data.",
+    "At least one source category among price, news, community, disclosures, and financials must succeed for a response to be shown; otherwise the UI must render an all-sources-failed state.",
+    "Prediction output must include separate results for 1d, 1w, and 1m and each result must include direction, score, confidence, and top evidence items.",
+    "The 1d horizon means direction from the current request time to the same-day market close.",
+    "Public community coverage in v1 may include public blogs and forums in addition to public stock discussion pages, but only when they are accessible without login and pass robots.txt and terms-of-service review.",
+    "Use weighted scoring with these default category weights by horizon: 1d = quote 0.35, news 0.25, community 0.20, disclosures 0.10, financials 0.10; 1w = quote 0.25, news 0.25, community 0.15, disclosures 0.15, financials 0.20; 1m = quote 0.15, news 0.20, community 0.10, disclosures 0.20, financials 0.35.",
+    "Map the final score to direction as up when score is 0.20 or higher, down when score is -0.20 or lower, and flat otherwise.",
+    "Cap confidence at low whenever fewer than three source categories are available or when all non-financial evidence is older than the configured freshness threshold.",
+    "Financial data freshness must be evaluated on a quarterly basis rather than the same threshold used for quote, news, community, and disclosures.",
+    "All rendered evidence must show source attribution and capture or publish time.",
+    "Use short-lived server-side caching to reduce repeated requests and protect public sources from unnecessary load.",
+    "No source adapter may attempt login bypass, CAPTCHA avoidance, or scraping behind account walls."
+  ],
+  "qualityGates": [
+    "npm run build"
+  ],
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "Scaffold the public Next.js dashboard project",
+      "status": "in_progress",
+      "dependsOn": [],
+      "description": "As a developer, I want a new Next.js project with the required packages, scripts, environment placeholders, and deployment basics so the dashboard can be built without setup guesswork.",
+      "acceptanceCriteria": [
+        "Create a new Next.js App Router TypeScript project and document Node and npm usage for local development.",
+        "Install required runtime packages with npm install zod cheerio p-limit and keep npm run build available as the required quality gate.",
+        "Add .env.example for non-secret configuration such as request timeout, cache TTL, default user agent, freshness thresholds, and source toggles, with no API keys required.",
+        "Include deployment basics for a public Next.js app, such as production environment variable documentation and host-ready build settings.",
+        "Example: after setup, npm run dev serves / with a stock-code input and placeholder dashboard sections.",
+        "Negative case: if a required non-secret env value is missing or invalid, the app fails with a descriptive startup or runtime validation message rather than silent fallback."
+      ],
+      "startedAt": "2026-03-08T13:17:30.915488+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-03-08T13:17:30.915680+00:00"
+    },
+    {
+      "id": "US-002",
+      "title": "Define source policy and normalized data schemas",
+      "status": "open",
+      "dependsOn": [
+        "US-001"
+      ],
+      "description": "As a developer, I want a source registry and validated normalized schemas so every collector follows the same rules and output shape.",
+      "acceptanceCriteria": [
+        "Create a source registry that classifies sources by category, public accessibility, robots-reviewed status, login requirement, terms-reviewed status, freshness expectations, and rate-limit notes.",
+        "Define normalized validation schemas for StockQuery, QuoteSnapshot, NewsItem, CommunityPost, DisclosureItem, FinancialSnapshot, HorizonSignal, and DashboardResult.",
+        "Ensure validation errors are returned in a structured way that can be surfaced in source diagnostics.",
+        "Example: a KIND disclosure page is normalized into a valid DisclosureItem with title, publishedAt, url, and importance.",
+        "Negative case: any source flagged as loginRequired=true, robotsReviewed=false, or termsReviewed=false is excluded from runtime aggregation."
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Resolve stock codes and collect quote data",
+      "status": "open",
+      "dependsOn": [
+        "US-002"
+      ],
+      "description": "As a user, I want the system to validate my stock code and fetch current market quote data so the dashboard starts from a reliable base.",
+      "acceptanceCriteria": [
+        "Accept a 6-digit stock code and resolve company name and market before downstream collection begins.",
+        "Collect and normalize current price, change amount, change percent, volume, and a recent trend series from at least one public no-login source.",
+        "Return a source timestamp and source identifier for every quote payload.",
+        "Example: code 005930 returns a normalized quote snapshot for Samsung Electronics with capturedAt and market metadata.",
+        "Negative case: invalid input such as 123 or an unknown stock code returns a validation error and skips downstream fetches."
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "Collect and normalize recent news",
+      "status": "open",
+      "dependsOn": [
+        "US-002",
+        "US-003"
+      ],
+      "description": "As a user, I want recent news related to the requested stock so the dashboard can explain short-term and medium-term movement drivers.",
+      "acceptanceCriteria": [
+        "Fetch recent stock-related news from at least one public unauthenticated source using stock code and resolved company name.",
+        "Normalize title, publisher, publishedAt, url, short summary, and sentiment for each article.",
+        "Deduplicate repeated articles using normalized title and URL matching.",
+        "Example: two mirrored articles with the same publisher and URL appear once in the news list.",
+        "Negative case: an article missing a valid URL or publish timestamp is discarded and recorded in diagnostics instead of breaking the list."
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Collect and summarize public community reaction",
+      "status": "open",
+      "dependsOn": [
+        "US-002",
+        "US-003"
+      ],
+      "description": "As a user, I want aggregated public community sentiment so I can see how retail discussion is leaning without logging into any service.",
+      "acceptanceCriteria": [
+        "Fetch posts only from public community or discussion sources that do not require login and have passed robots and terms review.",
+        "Normalize post title, excerpt, source, publish time, url, engagement proxy, and sentiment classification.",
+        "Aggregate bullish, bearish, and neutral counts plus top recurring themes for the requested stock.",
+        "Example: ten normalized posts with six bullish, two neutral, and two bearish yield a visible community summary and theme list.",
+        "Negative case: a login-walled, anti-bot-blocked, or terms-disallowed source is marked unavailable and skipped without attempting bypass behavior."
+      ]
+    },
+    {
+      "id": "US-006",
+      "title": "Collect disclosures and financial summary data",
+      "status": "open",
+      "dependsOn": [
+        "US-002",
+        "US-003"
+      ],
+      "description": "As a user, I want official disclosure context and basic financial metrics so the dashboard can weigh short-term noise against company fundamentals.",
+      "acceptanceCriteria": [
+        "Collect recent disclosures from public official no-login sources such as KIND pages or an equivalent public source and normalize title, category, publishedAt, url, and importance.",
+        "Collect basic financial summary metrics from a public no-login source and normalize fiscal period plus core profitability and valuation fields.",
+        "Label missing or stale financial data explicitly so the UI can explain confidence reductions.",
+        "Example: a recent earnings-related disclosure is surfaced as a high-importance evidence item in the dashboard.",
+        "Negative case: any source that requires an API key, account registration, private credential, or terms-prohibited extraction is rejected from v1 implementation."
+      ]
+    },
+    {
+      "id": "US-007",
+      "title": "Generate 1d, 1w, and 1m directional predictions",
+      "status": "open",
+      "dependsOn": [
+        "US-003",
+        "US-004",
+        "US-005",
+        "US-006"
+      ],
+      "description": "As a user, I want explainable directional signals across three time horizons so I can quickly interpret aggregated evidence.",
+      "acceptanceCriteria": [
+        "Produce HorizonSignal outputs for 1d, 1w, and 1m with direction, numeric score, confidence, and top reasons.",
+        "Implement the documented weighted scoring model across quote momentum, news sentiment, community sentiment, disclosures, and financial baseline.",
+        "Apply direction thresholds consistently as up at 0.20 or above, down at -0.20 or below, and flat otherwise.",
+        "Example: positive quote momentum, positive news, neutral community, and no negative disclosures can produce 1d=up with medium or high confidence.",
+        "Negative case: when fewer than three source categories are available, each prediction is still returned but confidence is capped at low with an explicit insufficient-coverage reason."
+      ]
+    },
+    {
+      "id": "US-008",
+      "title": "Aggregate sources through a single analysis API",
+      "status": "open",
+      "dependsOn": [
+        "US-003",
+        "US-004",
+        "US-005",
+        "US-006",
+        "US-007"
+      ],
+      "description": "As a user, I want one dashboard request to orchestrate all source collection and scoring so I receive a coherent result with warnings and timestamps.",
+      "acceptanceCriteria": [
+        "Add a server route handler such as /api/analyze that accepts a stock code, runs collectors in parallel with per-source timeout, and returns a normalized DashboardResult.",
+        "Add short-lived server-side caching keyed by stock code and freshness window to reduce repeated load on public sources.",
+        "Return sourceStatus, warnings, and analyzedAt alongside collected data and predictions.",
+        "Example: if community collection fails but quote, news, and disclosures succeed, the API returns partial data with a community warning instead of failing the whole response.",
+        "Negative case: malformed collector output is rejected before merge and surfaced as a category-level warning instead of causing an unhandled exception."
+      ]
+    },
+    {
+      "id": "US-009",
+      "title": "Build the single-page stock dashboard UI",
+      "status": "open",
+      "dependsOn": [
+        "US-008"
+      ],
+      "description": "As a user, I want a single dashboard page that turns one stock-code submission into an easy-to-scan analysis view.",
+      "acceptanceCriteria": [
+        "Implement / as the only user-facing route with StockCodeSearchForm, PredictionCards, SourceStatusPanel, NewsList, CommunitySummary, DisclosureList, and FinancialSnapshotCard components.",
+        "Store only recent searches in local browser storage with no account requirement.",
+        "Support explicit UI states for empty, loading, success, partial-data, invalid-code, stale-data, and all-sources-failed.",
+        "Example: entering 005930 renders quote summary, three prediction cards, and grouped evidence sections on the same page.",
+        "Negative case: non-numeric input or input that is not exactly six digits cannot be submitted and shows inline validation feedback."
+      ]
+    },
+    {
+      "id": "US-010",
+      "title": "Add transparency and readiness safeguards",
+      "status": "open",
+      "dependsOn": [
+        "US-008",
+        "US-009"
+      ],
+      "description": "As a user, I want clear source transparency and limitations so I understand what the dashboard can and cannot promise.",
+      "acceptanceCriteria": [
+        "Display a visible informational disclaimer that the dashboard is not brokerage functionality and does not guarantee returns.",
+        "Show source freshness timestamps and identify which categories were unavailable or served from stale cache.",
+        "Document the source review checklist for future adapters, including robots, terms, login requirement, timeout policy, freshness policy, and rate-limit expectations.",
+        "Example: when community data is unavailable, the dashboard still renders other sections and explicitly notes the missing category in the source status panel.",
+        "Negative case: the UI must not present low-confidence predictions as certain or hide missing-source conditions from the user."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# Activity Log
+
+## Run Summary
+
+## Events
+
+[2026-03-08 22:17:31] ITERATION 1 start (mode=build story=US-001)
+[2026-03-08 22:18:32] Start US-001 work: reviewing repo state and preparing Next.js scaffold
+[2026-03-08 22:23:32] Implemented US-001 scaffold files: Next.js app, env validation, docs, and placeholder dashboard UI
+[2026-03-08 22:26:41] Verified US-001 in browser and fixed form validation behavior surfaced during browser testing

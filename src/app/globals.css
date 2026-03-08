@@ -1,0 +1,47 @@
+:root {
+  --ink-strong: #111827;
+  --ink-soft: #475569;
+  --surface: rgba(255, 255, 255, 0.74);
+  --surface-strong: rgba(255, 255, 255, 0.9);
+  --surface-dark: #0f172a;
+  --line: rgba(15, 23, 42, 0.12);
+  --accent: #0f766e;
+  --accent-soft: rgba(15, 118, 110, 0.12);
+  --accent-strong: #0b4f4a;
+  --warning: #9a3412;
+  --canvas: #f5efe4;
+  --canvas-accent: #d2f2e3;
+  --shadow: 0 24px 80px rgba(15, 23, 42, 0.16);
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --font-display: "Avenir Next", "Trebuchet MS", "Gill Sans", sans-serif;
+  --font-body: "Avenir", "Segoe UI Variable", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(210, 242, 227, 0.95), transparent 38%),
+    radial-gradient(circle at top right, rgba(253, 224, 171, 0.92), transparent 32%),
+    linear-gradient(180deg, #fffaf0 0%, var(--canvas) 48%, #f0f9ff 100%);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink-strong);
+  font-family: var(--font-body);
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input {
+  font: inherit;
+}
