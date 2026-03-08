@@ -6,6 +6,7 @@ import { load } from "cheerio";
 import { z } from "zod";
 
 import { env } from "./env";
+import { describeFetchFailure } from "./fetch-failure";
 import {
   buildStructuredValidationError,
   createValidationDiagnostic,
@@ -156,7 +157,7 @@ async function fetchTextFromSource(url: string, options: FetchOptions) {
   } catch (error) {
     throw new NewsLookupSourceError(
       options.sourceId,
-      `Source ${options.sourceId} could not be reached.`,
+      describeFetchFailure(options.sourceId, error),
       { cause: error },
     );
   }

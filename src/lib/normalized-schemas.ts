@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { normalizeStockCodeInput } from "./stock-code";
+
 const nonEmptyStringSchema = z.string().trim().min(1, "Value is required");
 const finiteNumberSchema = z.number().finite("Value must be a finite number");
 const nonNegativeNumberSchema = finiteNumberSchema.min(
@@ -50,10 +52,13 @@ export const directionSchema = z.enum(["up", "flat", "down"]);
 export const confidenceSchema = z.enum(["low", "medium", "high"]);
 export const horizonSchema = z.enum(["1d", "1w", "1m"]);
 
-const stockCodeSchema = z
-  .string()
-  .trim()
-  .regex(/^\d{6}$/, "stockCode must be a 6-digit Korean stock code");
+const stockCodeSchema = z.preprocess(
+  normalizeStockCodeInput,
+  z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "stockCode must be a 6-digit Korean stock code"),
+);
 
 export const structuredValidationIssueSchema = z.object({
   path: z.array(z.union([z.string(), z.number()])),
@@ -208,6 +213,15 @@ export const disclosureItemSchema = z.object({
   importance: importanceSchema,
 });
 
+export const disclosureLookupResultSchema = z.object({
+  stockCode: stockCodeSchema,
+  companyName: nonEmptyStringSchema,
+  source: sourceCaptureSchema,
+  disclosures: z.array(disclosureItemSchema),
+  diagnostics: z.array(sourceDiagnosticSchema).default([]),
+  sourceStatus: z.array(sourceStatusSchema).default([]),
+});
+
 export const financialSnapshotSchema = z.object({
   source: sourceIdSchema,
   fiscalPeriod: nonEmptyStringSchema,
@@ -219,6 +233,15 @@ export const financialSnapshotSchema = z.object({
   per: financialMetricSchema,
   pbr: financialMetricSchema,
   capturedAt: isoTimestampSchema,
+});
+
+export const financialLookupResultSchema = z.object({
+  stockCode: stockCodeSchema,
+  companyName: nonEmptyStringSchema,
+  source: sourceCaptureSchema,
+  financials: z.array(financialSnapshotSchema),
+  diagnostics: z.array(sourceDiagnosticSchema).default([]),
+  sourceStatus: z.array(sourceStatusSchema).default([]),
 });
 
 export const horizonSignalSchema = z.object({
@@ -280,7 +303,9 @@ export type ThemeSummaryItem = z.infer<typeof themeSummaryItemSchema>;
 export type CommunitySummary = z.infer<typeof communitySummarySchema>;
 export type CommunityLookupResult = z.infer<typeof communityLookupResultSchema>;
 export type DisclosureItem = z.infer<typeof disclosureItemSchema>;
+export type DisclosureLookupResult = z.infer<typeof disclosureLookupResultSchema>;
 export type FinancialSnapshot = z.infer<typeof financialSnapshotSchema>;
+export type FinancialLookupResult = z.infer<typeof financialLookupResultSchema>;
 export type HorizonSignal = z.infer<typeof horizonSignalSchema>;
 export type DashboardResult = z.infer<typeof dashboardResultSchema>;
 

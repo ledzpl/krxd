@@ -104,6 +104,21 @@ export const sourceRegistry = sourceRegistrySchema.parse([
     rateLimitNotes: "Keep a short cache, request one stock at a time, and avoid tight polling loops.",
   },
   {
+    id: "naver-item-page-resolver",
+    name: "Naver item page resolver fallback",
+    category: "quote",
+    publicAccessible: true,
+    robotsReviewed: true,
+    loginRequired: false,
+    termsReviewed: true,
+    freshnessExpectation: {
+      value: 1,
+      unit: "days",
+      description: "Use as a fallback resolver when the primary listed issue lookup is unavailable.",
+    },
+    rateLimitNotes: "Use only as a resolver fallback and avoid repeated page fetches for the same stock code.",
+  },
+  {
     id: "public-news-search",
     name: "Public market news search",
     category: "news",

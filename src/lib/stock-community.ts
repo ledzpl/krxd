@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { env } from "./env";
+import { describeFetchFailure } from "./fetch-failure";
 import {
   buildStructuredValidationError,
   communityLookupResultSchema,
@@ -246,7 +247,7 @@ async function fetchJsonFromSource<T>(
   } catch (error) {
     throw new CommunityLookupSourceError(
       sourceId,
-      `Source ${sourceId} could not be reached.`,
+      describeFetchFailure(sourceId, error),
       { cause: error },
     );
   }

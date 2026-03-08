@@ -53,3 +53,16 @@ Production checklist:
 4. Launch the server with `npm run start`.
 
 Because the runtime has no API keys in v1, all documented variables are safe to define through standard public-app deployment controls.
+
+## Source adapter review checklist
+
+Review every new adapter against the same checklist before enabling it in runtime aggregation:
+
+1. `robots.txt`: confirm the target route is permitted for the intended automated access pattern.
+2. Terms of service: confirm the collection flow is allowed and does not require private or contractual access.
+3. Public access: reject any source that depends on login, account registration, API keys, or other credentials.
+4. Timeout policy: make sure the adapter respects `REQUEST_TIMEOUT_MS` and fails cleanly with a surfaced diagnostic.
+5. Freshness policy: define the expected freshness window and map it to the correct environment variable or quarterly rule.
+6. Rate-limit expectations: document request pacing, caching expectations, and any pagination limits needed to protect the source.
+7. Normalization: validate the adapter output against the shared schemas before merging it into dashboard analysis.
+8. Transparency: expose source id, timestamps, stale conditions, and failure states in `sourceStatus` instead of hiding them.
