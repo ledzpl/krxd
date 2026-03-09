@@ -4,7 +4,7 @@ import { load } from "cheerio";
 import { z } from "zod";
 
 import { env } from "./env";
-import { describeFetchFailure } from "./fetch-failure";
+import { describeFetchFailure, mapUpstreamStatusCode } from "./fetch-failure";
 import {
   buildStructuredValidationError,
   createStructuredValidationError,
@@ -193,7 +193,7 @@ async function fetchJsonFromSource<T>(
     throw new QuoteLookupSourceError(
       options.sourceId,
       `Source ${options.sourceId} returned HTTP ${response.status}.`,
-      { statusCode: response.status },
+      { statusCode: mapUpstreamStatusCode(response.status) },
     );
   }
 
@@ -223,7 +223,7 @@ async function fetchTextFromSource(url: string, options: FetchOptions) {
     throw new QuoteLookupSourceError(
       options.sourceId,
       `Source ${options.sourceId} returned HTTP ${response.status}.`,
-      { statusCode: response.status },
+      { statusCode: mapUpstreamStatusCode(response.status) },
     );
   }
 

@@ -53,6 +53,14 @@ export function describeFetchFailure(sourceId: string, error: unknown) {
   return `Source ${sourceId} could not be reached.`;
 }
 
+export function mapUpstreamStatusCode(statusCode: number) {
+  if (statusCode === 429 || statusCode >= 500) {
+    return 503;
+  }
+
+  return 502;
+}
+
 export function isLikelyRuntimeNetworkIssue(message: string) {
   return /dns resolution failed|outbound network access is unavailable|request timeout elapsed|connection was refused|connection was interrupted/i.test(
     message,

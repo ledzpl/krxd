@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { createStructuredValidationError } from "@/lib/normalized-schemas";
 import {
   AnalyzeDashboardSourceError,
   AnalyzeDashboardValidationError,
@@ -16,9 +17,19 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json(
       {
-        error: {
-          summary: "Request body must be valid JSON.",
-        },
+        error: createStructuredValidationError(
+          {
+            entity: "stockQuery",
+          },
+          [
+            {
+              path: ["body"],
+              code: "invalid_json",
+              message: "Request body must be valid JSON.",
+            },
+          ],
+          "Invalid request body",
+        ),
       },
       { status: 400 },
     );

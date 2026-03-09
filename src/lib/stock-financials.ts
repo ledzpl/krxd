@@ -3,7 +3,7 @@ import "server-only";
 import { load } from "cheerio";
 
 import { env } from "./env";
-import { describeFetchFailure } from "./fetch-failure";
+import { describeFetchFailure, mapUpstreamStatusCode } from "./fetch-failure";
 import {
   buildStructuredValidationError,
   financialLookupResultSchema,
@@ -116,7 +116,7 @@ async function fetchTextFromSource(url: string) {
     throw new FinancialLookupSourceError(
       STOCK_FINANCIAL_SOURCE_ID,
       `Source ${STOCK_FINANCIAL_SOURCE_ID} returned HTTP ${response.status}.`,
-      { statusCode: response.status },
+      { statusCode: mapUpstreamStatusCode(response.status) },
     );
   }
 

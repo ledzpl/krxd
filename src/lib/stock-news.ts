@@ -6,7 +6,7 @@ import { load } from "cheerio";
 import { z } from "zod";
 
 import { env } from "./env";
-import { describeFetchFailure } from "./fetch-failure";
+import { describeFetchFailure, mapUpstreamStatusCode } from "./fetch-failure";
 import {
   buildStructuredValidationError,
   createValidationDiagnostic,
@@ -74,7 +74,11 @@ const negativeSentimentKeywords = [
 const newsLookupInputSchema = stockQuerySchema.pick({
   stockCode: true,
 }).extend({
-  companyName: z.string().trim().min(1, "companyName is required"),
+  companyName: z
+    .string()
+    .trim()
+    .min(1, "companyName is required")
+    .max(80, "companyName must be 80 characters or fewer"),
 });
 
 type ParsedNewsCandidate = {
@@ -166,7 +170,7 @@ async function fetchTextFromSource(url: string, options: FetchOptions) {
     throw new NewsLookupSourceError(
       options.sourceId,
       `Source ${options.sourceId} returned HTTP ${response.status}.`,
-      { statusCode: response.status },
+      { statusCode: mapUpstreamStatusCode(response.status) },
     );
   }
 

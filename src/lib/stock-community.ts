@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { env } from "./env";
-import { describeFetchFailure } from "./fetch-failure";
+import { describeFetchFailure, mapUpstreamStatusCode } from "./fetch-failure";
 import {
   buildStructuredValidationError,
   communityLookupResultSchema,
@@ -149,7 +149,11 @@ const ignoredThemeTokens = new Set([
 const communityLookupInputSchema = stockQuerySchema.pick({
   stockCode: true,
 }).extend({
-  companyName: z.string().trim().min(1, "companyName is required"),
+  companyName: z
+    .string()
+    .trim()
+    .min(1, "companyName is required")
+    .max(80, "companyName must be 80 characters or fewer"),
 });
 
 const tistorySearchEntrySchema = z.object({
@@ -256,7 +260,7 @@ async function fetchJsonFromSource<T>(
     throw new CommunityLookupSourceError(
       sourceId,
       `Source ${sourceId} returned HTTP ${response.status}.`,
-      { statusCode: response.status },
+      { statusCode: mapUpstreamStatusCode(response.status) },
     );
   }
 

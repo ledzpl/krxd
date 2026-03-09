@@ -8,6 +8,8 @@ const nonNegativeNumberSchema = finiteNumberSchema.min(
   0,
   "Value must be greater than or equal to 0",
 );
+const isoTimestampPattern =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
 const nonNegativeIntegerSchema = z
   .number()
   .int("Value must be an integer")
@@ -17,6 +19,10 @@ export const isoTimestampSchema = z
   .string()
   .trim()
   .min(1, "Timestamp is required")
+  .refine(
+    (value) => isoTimestampPattern.test(value),
+    "Timestamp must be a strict ISO 8601 string with timezone",
+  )
   .refine(
     (value) => !Number.isNaN(Date.parse(value)),
     "Timestamp must be a valid ISO 8601 string",
