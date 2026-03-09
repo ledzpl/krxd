@@ -8,50 +8,57 @@
 
   /* ── Ink ────────────────────────────────────────────────── */
   --ink-strong: #f0f6ff;
-  --ink-soft: #7a90b8;
-  --ink-muted: #3e5272;
+  --ink-soft: #8ba1c6;
+  --ink-muted: #445a7a;
 
   /* ── Surfaces ───────────────────────────────────────────── */
-  --surface: rgba(8, 14, 28, 0.80);
-  --surface-strong: rgba(12, 20, 42, 0.96);
+  --surface: rgba(10, 16, 32, 0.72);
+  --surface-strong: rgba(12, 20, 42, 0.94);
   --surface-dark: #030810;
-  --surface-muted: rgba(14, 24, 46, 0.62);
+  --surface-muted: rgba(14, 24, 46, 0.56);
 
   /* ── Borders ────────────────────────────────────────────── */
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.13);
-  --line-highlight: rgba(255, 255, 255, 0.055);
+  --line: rgba(255, 255, 255, 0.06);
+  --line-strong: rgba(255, 255, 255, 0.12);
+  --line-highlight: rgba(255, 255, 255, 0.04);
 
   /* ── Accent — teal ──────────────────────────────────────── */
-  --accent: #00cdb5;
-  --accent-soft: rgba(0, 205, 181, 0.11);
-  --accent-glow: rgba(0, 205, 181, 0.28);
+  --accent: #00dcc3;
+  --accent-soft: rgba(0, 220, 195, 0.10);
+  --accent-glow: rgba(0, 220, 195, 0.24);
   --accent-strong: #5ffcec;
 
   /* ── Info — blue ────────────────────────────────────────── */
-  --info: #3da8ff;
-  --info-soft: rgba(61, 168, 255, 0.11);
-  --info-glow: rgba(61, 168, 255, 0.24);
+  --info: #4db4ff;
+  --info-soft: rgba(77, 180, 255, 0.10);
+  --info-glow: rgba(77, 180, 255, 0.22);
 
   /* ── Warning — orange ───────────────────────────────────── */
-  --warning: #ff7d3a;
-  --warning-soft: rgba(255, 125, 58, 0.11);
-  --warning-glow: rgba(255, 125, 58, 0.24);
+  --warning: #ff8a4c;
+  --warning-soft: rgba(255, 138, 76, 0.10);
+  --warning-glow: rgba(255, 138, 76, 0.22);
 
   /* ── Canvas ─────────────────────────────────────────────── */
-  --canvas: #040912;
-  --canvas-accent: #070e1e;
+  --canvas: #050a14;
+  --canvas-accent: #080f22;
 
   /* ── Shadows ────────────────────────────────────────────── */
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.30), 0 4px 12px rgba(0, 0, 0, 0.22);
-  --shadow: 0 4px 16px rgba(0, 0, 0, 0.38), 0 16px 48px rgba(0, 0, 0, 0.28);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.44), 0 32px 80px rgba(0, 0, 0, 0.36);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.18);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.32), 0 12px 40px rgba(0, 0, 0, 0.24);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.40), 0 24px 64px rgba(0, 0, 0, 0.32);
 
   /* ── Radius ─────────────────────────────────────────────── */
-  --radius-xl: 26px;
-  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-lg: 16px;
   --radius-md: 12px;
   --radius-sm: 8px;
+
+  /* ── Transitions ────────────────────────────────────────── */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 160ms;
+  --duration-normal: 240ms;
+  --duration-slow: 400ms;
 }
 
 * {
@@ -59,15 +66,12 @@
 }
 
 html {
-  background:
-    radial-gradient(ellipse 80% 50% at 8% 0%, rgba(0, 205, 181, 0.13) 0%, transparent 52%),
-    radial-gradient(ellipse 60% 42% at 92% 0%, rgba(61, 168, 255, 0.11) 0%, transparent 52%),
-    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(255, 125, 58, 0.07) 0%, transparent 50%),
-    #040912;
+  background: var(--canvas);
   min-height: 100vh;
 }
 
 body {
+  position: relative;
   margin: 0;
   min-height: 100vh;
   color: var(--ink-strong);
@@ -75,6 +79,44 @@ body {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Animated mesh gradient background ─────────────────────── */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse 80% 50% at 8% 0%, rgba(0, 220, 195, 0.12) 0%, transparent 52%),
+    radial-gradient(ellipse 60% 42% at 92% 0%, rgba(77, 180, 255, 0.10) 0%, transparent 52%),
+    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(255, 138, 76, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 40% 40% at 50% 40%, rgba(0, 220, 195, 0.04) 0%, transparent 60%);
+  animation: meshDrift 20s ease-in-out infinite alternate;
+}
+
+/* ── Noise texture overlay ─────────────────────────────────── */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  pointer-events: none;
+}
+
+@keyframes meshDrift {
+  0% {
+    filter: hue-rotate(0deg);
+    transform: scale(1);
+  }
+  100% {
+    filter: hue-rotate(8deg);
+    transform: scale(1.05);
+  }
 }
 
 a {
@@ -88,8 +130,8 @@ input {
 
 /* ── Scrollbar ────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -97,10 +139,34 @@ input {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.16);
+  background: rgba(148, 163, 184, 0.14);
   border-radius: 3px;
+  transition: background 200ms;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.28);
+}
+
+/* ── Selection ────────────────────────────────────────────── */
+::selection {
+  background: rgba(0, 220, 195, 0.20);
+  color: var(--ink-strong);
+}
+
+/* ── Focus visible ────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(0, 220, 195, 0.50);
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ───────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
