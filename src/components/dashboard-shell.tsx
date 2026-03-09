@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useEffectEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import type { DashboardResult, SourceStatus } from "@/lib/normalized-schemas";
 import { sanitizeStockCodeDigits } from "@/lib/stock-code";
@@ -8,6 +9,7 @@ import { sanitizeStockCodeDigits } from "@/lib/stock-code";
 import styles from "./dashboard-shell.module.css";
 
 type DashboardShellProps = {
+  initialStockCode?: string;
   config: {
     requestTimeoutMs: number;
     cacheTtlSeconds: number;
@@ -51,6 +53,7 @@ type AnalyzeApiError = {
 };
 
 const DEFAULT_HORIZONS = ["1d", "1w", "1m"] as const;
+const DEFAULT_FEEDBACK = "6자리 종목 코드를 입력하면 공개 소스를 묶어 한 번에 분석합니다.";
 const RECENT_SEARCHES_KEY = "kstock-dashboard.recent-searches";
 const MAX_RECENT_SEARCHES = 6;
 const STOCK_RESOLUTION_SOURCE_ID = "krx-stock-code-resolver";
@@ -83,11 +86,14 @@ const decimalFormatter = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 2,
 });
 
-export function DashboardShell({ config }: DashboardShellProps) {
+export function DashboardShell({
+  config,
+  initialStockCode = "",
+}: DashboardShellProps) {
+  const router = useRouter();
+  const routeStockCode = sanitizeStockCodeDigits(initialStockCode);
   const [stockCode, setStockCode] = useState("");
-  const [feedback, setFeedback] = useState(
-    "6자리 종목 코드를 입력하면 공개 소스를 묶어 한 번에 분석합니다.",
-  );
+  const [feedback, setFeedback] = useState(DEFAULT_FEEDBACK);
   const [isInvalid, setIsInvalid] = useState(false);
   const [isRequestFailure, setIsRequestFailure] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -140,7 +146,7 @@ export function DashboardShell({ config }: DashboardShellProps) {
     warnings: currentWarnings,
   });
 
-  async function handleAnalyze(requestedStockCode: string) {
+  const handleAnalyze = useEffectEvent(async (requestedStockCode: string) => {
     const normalizedStockCode = sanitizeStockCodeDigits(requestedStockCode);
 
     setIsLoading(true);
@@ -217,7 +223,23 @@ export function DashboardShell({ config }: DashboardShellProps) {
     } finally {
       setIsLoading(false);
     }
-  }
+  });
+
+  useEffect(() => {
+    setStockCode(routeStockCode);
+
+    if (routeStockCode.length === 0) {
+      setFeedback(DEFAULT_FEEDBACK);
+      setIsInvalid(false);
+      setIsRequestFailure(false);
+      setIsLoading(false);
+      setResult(null);
+      setError(null);
+      return;
+    }
+
+    void handleAnalyze(routeStockCode);
+  }, [routeStockCode]);
 
   function persistRecentSearch(entry: RecentSearch) {
     setRecentSearches((previous) => {
@@ -254,7 +276,13 @@ export function DashboardShell({ config }: DashboardShellProps) {
     }
 
     setStockCode(normalizedStockCode);
-    void handleAnalyze(normalizedStockCode);
+
+    if (normalizedStockCode === routeStockCode) {
+      void handleAnalyze(normalizedStockCode);
+      return;
+    }
+
+    router.push(`/${normalizedStockCode}`);
   }
 
   return (
@@ -273,16 +301,22 @@ export function DashboardShell({ config }: DashboardShellProps) {
 
             <div className={styles.heroUtility}>
               <StockCodeSearchForm
-              feedback={feedback}
-              isInvalid={isInvalid}
-              isLoading={isLoading}
-              isRequestFailure={isRequestFailure}
-              recentSearches={recentSearches}
-              stockCode={stockCode}
+                feedback={feedback}
+                isInvalid={isInvalid}
+                isLoading={isLoading}
+                isRequestFailure={isRequestFailure}
+                recentSearches={recentSearches}
+                stockCode={stockCode}
                 onChange={setStockCode}
                 onSelectRecent={(recentStockCode) => {
                   setStockCode(recentStockCode);
-                  void handleAnalyze(recentStockCode);
+
+                  if (recentStockCode === routeStockCode) {
+                    void handleAnalyze(recentStockCode);
+                    return;
+                  }
+
+                  router.push(`/${recentStockCode}`);
                 }}
                 onSubmit={handleSubmit}
               />
