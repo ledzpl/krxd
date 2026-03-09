@@ -1,28 +1,57 @@
 :root {
   color-scheme: dark;
-  --ink-strong: #edf4ff;
-  --ink-soft: #95a6c6;
-  --surface: rgba(10, 16, 30, 0.82);
-  --surface-strong: rgba(16, 24, 42, 0.94);
-  --surface-dark: #040814;
-  --surface-muted: rgba(18, 28, 48, 0.7);
-  --line: rgba(148, 163, 184, 0.16);
-  --line-strong: rgba(148, 163, 184, 0.26);
-  --accent: #21c7b3;
-  --accent-soft: rgba(33, 199, 179, 0.14);
-  --accent-strong: #8be9db;
-  --info: #58b6ff;
-  --info-soft: rgba(88, 182, 255, 0.14);
-  --warning: #ff9661;
-  --warning-soft: rgba(255, 150, 97, 0.14);
-  --canvas: #050814;
-  --canvas-accent: #0a1020;
-  --shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
-  --radius-xl: 28px;
-  --radius-lg: 20px;
-  --radius-md: 14px;
-  --font-display: "Avenir Next", "Trebuchet MS", "Gill Sans", sans-serif;
-  --font-body: "Avenir", "Segoe UI Variable", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+
+  /* ── Typography ─────────────────────────────────────────── */
+  --font-display: "SF Pro Display", "Avenir Next", -apple-system, "Helvetica Neue", sans-serif;
+  --font-body: "SF Pro Text", "Avenir", -apple-system, "Helvetica Neue", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
+
+  /* ── Ink ────────────────────────────────────────────────── */
+  --ink-strong: #f0f6ff;
+  --ink-soft: #7a90b8;
+  --ink-muted: #3e5272;
+
+  /* ── Surfaces ───────────────────────────────────────────── */
+  --surface: rgba(8, 14, 28, 0.80);
+  --surface-strong: rgba(12, 20, 42, 0.96);
+  --surface-dark: #030810;
+  --surface-muted: rgba(14, 24, 46, 0.62);
+
+  /* ── Borders ────────────────────────────────────────────── */
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.13);
+  --line-highlight: rgba(255, 255, 255, 0.055);
+
+  /* ── Accent — teal ──────────────────────────────────────── */
+  --accent: #00cdb5;
+  --accent-soft: rgba(0, 205, 181, 0.11);
+  --accent-glow: rgba(0, 205, 181, 0.28);
+  --accent-strong: #5ffcec;
+
+  /* ── Info — blue ────────────────────────────────────────── */
+  --info: #3da8ff;
+  --info-soft: rgba(61, 168, 255, 0.11);
+  --info-glow: rgba(61, 168, 255, 0.24);
+
+  /* ── Warning — orange ───────────────────────────────────── */
+  --warning: #ff7d3a;
+  --warning-soft: rgba(255, 125, 58, 0.11);
+  --warning-glow: rgba(255, 125, 58, 0.24);
+
+  /* ── Canvas ─────────────────────────────────────────────── */
+  --canvas: #040912;
+  --canvas-accent: #070e1e;
+
+  /* ── Shadows ────────────────────────────────────────────── */
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.30), 0 4px 12px rgba(0, 0, 0, 0.22);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.38), 0 16px 48px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.44), 0 32px 80px rgba(0, 0, 0, 0.36);
+
+  /* ── Radius ─────────────────────────────────────────────── */
+  --radius-xl: 26px;
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
 }
 
 * {
@@ -31,20 +60,21 @@
 
 html {
   background:
-    radial-gradient(circle at top left, rgba(33, 199, 179, 0.16), transparent 30%),
-    radial-gradient(circle at top right, rgba(88, 182, 255, 0.15), transparent 26%),
-    radial-gradient(circle at 50% 100%, rgba(255, 150, 97, 0.08), transparent 28%),
-    linear-gradient(180deg, #02050f 0%, var(--canvas) 48%, #050a18 100%);
+    radial-gradient(ellipse 80% 50% at 8% 0%, rgba(0, 205, 181, 0.13) 0%, transparent 52%),
+    radial-gradient(ellipse 60% 42% at 92% 0%, rgba(61, 168, 255, 0.11) 0%, transparent 52%),
+    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(255, 125, 58, 0.07) 0%, transparent 50%),
+    #040912;
+  min-height: 100vh;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    linear-gradient(180deg, rgba(5, 8, 20, 0.74), rgba(5, 8, 20, 0.92)),
-    linear-gradient(135deg, rgba(10, 16, 32, 0.82), rgba(4, 8, 20, 0.96));
   color: var(--ink-strong);
   font-family: var(--font-body);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 a {
@@ -54,4 +84,23 @@ a {
 button,
 input {
   font: inherit;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.16);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.28);
 }
