@@ -899,6 +899,206 @@
   text-transform: uppercase;
 }
 
+/* ─── Sparkline ───────────────────────────────────────────── */
+.sparkline {
+  width: 100%;
+  max-width: 200px;
+  height: 32px;
+  display: block;
+  margin: 2px 0;
+}
+
+/* ─── Action strip ───────────────────────────────────────── */
+.toolStrip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.actionStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.actionBtn {
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-normal) ease,
+    background var(--duration-normal) ease,
+    color var(--duration-normal) ease,
+    transform var(--duration-fast) var(--ease-spring);
+}
+
+.actionBtn:hover {
+  border-color: rgba(0, 220, 195, 0.24);
+  background: rgba(0, 220, 195, 0.06);
+  color: var(--accent-strong);
+  transform: translateY(-1px);
+}
+
+.actionBtn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.actionBtnActive {
+  border-color: rgba(0, 220, 195, 0.30);
+  background: rgba(0, 220, 195, 0.10);
+  color: var(--accent-strong);
+}
+
+.recentSearchChipActive {
+  border-color: rgba(0, 220, 195, 0.30);
+  background: rgba(0, 220, 195, 0.10);
+  color: var(--accent-strong);
+}
+
+/* ─── Market Overview ────────────────────────────────────── */
+.overviewBand {
+  display: grid;
+  gap: 14px;
+}
+
+.overviewCard {
+  width: 100%;
+}
+
+.overviewGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+
+.overviewItem {
+  display: grid;
+  gap: 5px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.022);
+  transition:
+    border-color var(--duration-normal) ease,
+    background var(--duration-normal) ease,
+    transform var(--duration-fast) var(--ease-out-expo);
+}
+
+.overviewItem:hover {
+  border-color: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.035);
+  transform: translateY(-1px);
+}
+
+/* ─── 52-week position bar ───────────────────────────────── */
+.positionBar {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.positionFill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--warning) 0%, var(--accent) 100%);
+  transition: width 0.6s var(--ease-out-expo);
+}
+
+/* ─── Light theme overrides ──────────────────────────────── */
+:global([data-theme="light"]) .page {
+  --ink-strong: #1a1a2e;
+  --ink-soft: #5a6278;
+  --ink-muted: #8a93a8;
+  --surface: rgba(255, 255, 255, 0.80);
+  --surface-strong: rgba(248, 250, 252, 0.96);
+  --line: rgba(0, 0, 0, 0.08);
+  --line-strong: rgba(0, 0, 0, 0.14);
+  --accent: #009e8e;
+  --accent-soft: rgba(0, 158, 142, 0.10);
+  --accent-glow: rgba(0, 158, 142, 0.22);
+  --accent-strong: #007a6e;
+  --info: #2d8cd6;
+  --warning: #d4652e;
+}
+
+:global([data-theme="light"]) .hero {
+  background: linear-gradient(145deg, rgba(248, 250, 255, 0.97) 0%, rgba(240, 245, 255, 0.92) 100%);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.80),
+    0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+:global([data-theme="light"]) .card,
+:global([data-theme="light"]) .disclaimerCard {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.07);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+:global([data-theme="light"]) .input {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1a1a2e;
+}
+
+:global([data-theme="light"]) .submit {
+  background: linear-gradient(150deg, #00c4b0 0%, #009e8e 100%);
+  color: #fff;
+}
+
+:global([data-theme="light"]) .headline {
+  background: linear-gradient(150deg, #1a1a2e 20%, #009e8e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+:global([data-theme="light"]) .newsRow,
+:global([data-theme="light"]) .communityRow,
+:global([data-theme="light"]) .disclosureRow,
+:global([data-theme="light"]) .statusRow,
+:global([data-theme="light"]) .communityMetric,
+:global([data-theme="light"]) .financialMetricCard,
+:global([data-theme="light"]) .overviewItem {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+:global([data-theme="light"]) .warningCard {
+  background: rgba(255, 245, 235, 0.90);
+  border-color: rgba(212, 101, 46, 0.18);
+}
+
+:global([data-theme="light"]) .badge,
+:global([data-theme="light"]) .configTag,
+:global([data-theme="light"]) .disclaimerTag {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #5a6278;
+}
+
+:global([data-theme="light"]) .actionBtn {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: #5a6278;
+}
+
+:global([data-theme="light"]) .recentSearchChip {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #5a6278;
+}
+
 /* ─── Responsive ──────────────────────────────────────────── */
 @media (max-width: 1200px) {
   .summaryBand {
@@ -981,6 +1181,15 @@
   .financialSummary,
   .financialGrid {
     grid-template-columns: 1fr;
+  }
+
+  .overviewGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .toolStrip {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 

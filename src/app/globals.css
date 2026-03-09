@@ -160,6 +160,27 @@ input {
   outline-offset: 2px;
 }
 
+/* ── Light theme ──────────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+[data-theme="light"] body {
+  color: #1a1a2e;
+  background: #f5f7fa;
+}
+
+[data-theme="light"] body::before {
+  background:
+    radial-gradient(ellipse 80% 50% at 8% 0%, rgba(0, 158, 142, 0.08) 0%, transparent 52%),
+    radial-gradient(ellipse 60% 42% at 92% 0%, rgba(45, 140, 214, 0.06) 0%, transparent 52%),
+    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(212, 101, 46, 0.04) 0%, transparent 50%);
+}
+
+[data-theme="light"] body::after {
+  opacity: 0.015;
+}
+
 /* ── Reduced motion ───────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,

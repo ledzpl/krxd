@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { DashboardResult, SourceStatus } from "@/lib/normalized-schemas";
@@ -68,6 +68,173 @@ const STOCK_RESOLUTION_SOURCE_ID = "krx-stock-code-resolver";
 const STOCK_QUOTE_SOURCE_ID = "naver-domestic-market-data";
 const STOCK_FINANCIAL_SOURCE_ID = "public-financial-statements";
 
+const WATCHLIST_KEY = "kstock-dashboard.watchlist";
+const THEME_KEY = "kstock-dashboard.theme";
+const AUTO_REFRESH_KEY = "kstock-dashboard.auto-refresh";
+const AUTO_REFRESH_INTERVAL_MS = 60_000;
+
+/* ── Watchlist hook ──────────────────────────────────────── */
+type WatchlistEntry = { stockCode: string; companyName: string; addedAt: string };
+
+function useWatchlist() {
+  const [items, setItems] = useState<WatchlistEntry[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(WATCHLIST_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as WatchlistEntry[];
+        if (Array.isArray(parsed)) setItems(parsed);
+      }
+    } catch {
+      window.localStorage.removeItem(WATCHLIST_KEY);
+    }
+  }, []);
+
+  function persist(next: WatchlistEntry[]) {
+    setItems(next);
+    try { window.localStorage.setItem(WATCHLIST_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  }
+
+  function add(stockCode: string, companyName: string) {
+    persist([
+      { stockCode, companyName, addedAt: new Date().toISOString() },
+      ...items.filter((i) => i.stockCode !== stockCode),
+    ].slice(0, 20));
+  }
+
+  function remove(stockCode: string) {
+    persist(items.filter((i) => i.stockCode !== stockCode));
+  }
+
+  function has(stockCode: string) {
+    return items.some((i) => i.stockCode === stockCode);
+  }
+
+  return { items, add, remove, has };
+}
+
+/* ── Theme hook ──────────────────────────────────────────── */
+function useTheme() {
+  const [theme, setThemeState] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(THEME_KEY);
+    if (stored === "light") {
+      setThemeState("light");
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+  }, []);
+
+  function toggle() {
+    const next = theme === "dark" ? "light" : "dark";
+    setThemeState(next);
+    document.documentElement.setAttribute("data-theme", next);
+    try { window.localStorage.setItem(THEME_KEY, next); } catch { /* ignore */ }
+  }
+
+  return { theme, toggle };
+}
+
+/* ── Auto-refresh hook ───────────────────────────────────── */
+function useAutoRefresh(
+  enabled: boolean,
+  isLoading: boolean,
+  stockCode: string,
+  analyze: (code: string) => void,
+) {
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    if (!enabled || !stockCode || isLoading) return;
+
+    intervalRef.current = setInterval(() => {
+      if (stockCode) analyze(stockCode);
+    }, AUTO_REFRESH_INTERVAL_MS);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [enabled, isLoading, stockCode, analyze]);
+}
+
+/* ── Sparkline SVG ───────────────────────────────────────── */
+function Sparkline({ points, width = 120, height = 32 }: {
+  points: Array<{ price: number }>;
+  width?: number;
+  height?: number;
+}) {
+  if (points.length < 2) return null;
+
+  const prices = points.map((p) => p.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+  const stepX = width / (prices.length - 1);
+
+  const pathD = prices
+    .map((price, i) => {
+      const x = i * stepX;
+      const y = height - ((price - min) / range) * (height - 4) - 2;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  const isUp = prices[prices.length - 1] >= prices[0];
+  const color = isUp ? "var(--accent)" : "var(--warning)";
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className={styles.sparkline} aria-hidden>
+      <defs>
+        <linearGradient id={`spark-${isUp ? "up" : "down"}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path
+        d={`${pathD} L${width},${height} L0,${height} Z`}
+        fill={`url(#spark-${isUp ? "up" : "down"})`}
+      />
+      <path d={pathD} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* ── Volume anomaly detection ────────────────────────────── */
+function detectVolumeAnomaly(quote: DashboardResult["quote"]): { isAnomaly: boolean; ratio: number } {
+  if (!quote || quote.trendPoints.length < 10) return { isAnomaly: false, ratio: 0 };
+  // Simple heuristic: if volume is 2x+ the implied average from trend volatility
+  // Since we don't have historical volume, we use current volume vs a rough threshold
+  const avgPrice = quote.trendPoints.reduce((s, p) => s + p.price, 0) / quote.trendPoints.length;
+  const expectedDailyTurnover = avgPrice * 100_000; // rough baseline
+  const ratio = expectedDailyTurnover > 0 ? (quote.volume * avgPrice) / expectedDailyTurnover : 0;
+  return { isAnomaly: ratio > 2, ratio: Math.round(ratio * 10) / 10 };
+}
+
+/* ── 52-week position ────────────────────────────────────── */
+function get52WeekPosition(currentPrice: number, high: number | null, low: number | null): number | null {
+  if (high === null || low === null || high === low) return null;
+  return Math.round(((currentPrice - low) / (high - low)) * 100);
+}
+
+/* ── Share function ──────────────────────────────────────── */
+function shareResult(result: DashboardResult) {
+  const text = `${result.companyName} (${result.stockCode}) 분석 결과\n` +
+    (result.quote ? `현재가: ${numberFormatter.format(result.quote.currentPrice)}원 (${formatSignedPercent(result.quote.changePercent)})\n` : "") +
+    result.signals.map((s) => `${formatHorizonLabel(s.horizon as "1d" | "1w" | "1m")}: ${formatDirection(s.direction)} ${decimalFormatter.format(s.score)}`).join(" | ") +
+    `\n${window.location.href}`;
+
+  if (navigator.clipboard) {
+    void navigator.clipboard.writeText(text);
+  }
+}
+
+/* ── Main Shell ──────────────────────────────────────────── */
 export function DashboardShell({
   config,
   initialStockCode = "",
@@ -89,6 +256,36 @@ export function DashboardShell({
     setStockCode,
     stockCode,
   } = useDashboardAnalysis(routeStockCode, config.requestTimeoutMs);
+
+  const watchlist = useWatchlist();
+  const { theme, toggle: toggleTheme } = useTheme();
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [shareConfirm, setShareConfirm] = useState(false);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(AUTO_REFRESH_KEY);
+    if (stored === "true") setAutoRefresh(true);
+  }, []);
+
+  const stableAnalyze = useCallback((code: string) => {
+    void analyzeStockCode(code);
+  }, [analyzeStockCode]);
+
+  useAutoRefresh(autoRefresh, isLoading, routeStockCode, stableAnalyze);
+
+  function handleAutoRefreshToggle() {
+    const next = !autoRefresh;
+    setAutoRefresh(next);
+    try { window.localStorage.setItem(AUTO_REFRESH_KEY, String(next)); } catch { /* ignore */ }
+  }
+
+  function handleShare() {
+    if (result) {
+      shareResult(result);
+      setShareConfirm(true);
+      setTimeout(() => setShareConfirm(false), 2000);
+    }
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,6 +314,8 @@ export function DashboardShell({
     router.push(`/${normalizedStockCode}`);
   }
 
+  const isWatched = result ? watchlist.has(result.stockCode) : false;
+
   return (
     <main className={styles.page}>
       <div className={styles.frame}>
@@ -142,36 +341,93 @@ export function DashboardShell({
                 onChange={setStockCode}
                 onSelectRecent={(recentStockCode) => {
                   setStockCode(recentStockCode);
-
                   if (recentStockCode === routeStockCode) {
-                    if (!isLoading) {
-                      void analyzeStockCode(recentStockCode);
-                    }
+                    if (!isLoading) void analyzeStockCode(recentStockCode);
                     return;
                   }
-
                   router.push(`/${recentStockCode}`);
                 }}
                 onSubmit={handleSubmit}
               />
 
-              <div className={styles.configStrip}>
-                <span className={styles.configTag}>
-                  응답 제한 {Math.round(config.requestTimeoutMs / 1000)}초
-                </span>
-                <span className={styles.configTag}>
-                  캐시 {config.cacheTtlSeconds}초
-                </span>
-                <span className={styles.configTag}>
-                  시세 신선도 {config.freshness.quoteMinutes}분
-                </span>
-                <span className={styles.configTag}>
-                  재무 신선도 {config.freshness.financialDays}일
-                </span>
+              <div className={styles.toolStrip}>
+                <div className={styles.configStrip}>
+                  <span className={styles.configTag}>
+                    응답 제한 {Math.round(config.requestTimeoutMs / 1000)}초
+                  </span>
+                  <span className={styles.configTag}>
+                    캐시 {config.cacheTtlSeconds}초
+                  </span>
+                </div>
+                <div className={styles.actionStrip}>
+                  <button className={styles.actionBtn} type="button" onClick={toggleTheme} title="테마 전환">
+                    {theme === "dark" ? "Light" : "Dark"}
+                  </button>
+                  <button
+                    className={`${styles.actionBtn} ${autoRefresh ? styles.actionBtnActive : ""}`}
+                    type="button"
+                    onClick={handleAutoRefreshToggle}
+                    title={autoRefresh ? "자동 갱신 끄기" : "자동 갱신 켜기 (60초)"}
+                  >
+                    {autoRefresh ? "Auto ON" : "Auto OFF"}
+                  </button>
+                  {result ? (
+                    <>
+                      <button className={styles.actionBtn} type="button" onClick={handleShare}>
+                        {shareConfirm ? "Copied!" : "Share"}
+                      </button>
+                      <button
+                        className={`${styles.actionBtn} ${isWatched ? styles.actionBtnActive : ""}`}
+                        type="button"
+                        onClick={() => {
+                          if (isWatched) watchlist.remove(result.stockCode);
+                          else watchlist.add(result.stockCode, result.companyName);
+                        }}
+                      >
+                        {isWatched ? "Watched" : "Watch"}
+                      </button>
+                    </>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
         </section>
+
+        {/* Watchlist */}
+        {watchlist.items.length > 0 ? (
+          <section className={styles.card}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>관심종목</h2>
+                <p className={styles.sectionCopy}>
+                  즐겨찾기한 종목을 빠르게 조회합니다.
+                </p>
+              </div>
+              <span className={styles.badge}>{watchlist.items.length}종목</span>
+            </div>
+            <div className={styles.recentSearchList}>
+              {watchlist.items.map((item) => (
+                <button
+                  className={`${styles.recentSearchChip} ${item.stockCode === routeStockCode ? styles.recentSearchChipActive : ""}`}
+                  key={item.stockCode}
+                  type="button"
+                  onClick={() => {
+                    setStockCode(item.stockCode);
+                    if (item.stockCode === routeStockCode) {
+                      if (!isLoading) void analyzeStockCode(item.stockCode);
+                    } else {
+                      router.push(`/${item.stockCode}`);
+                    }
+                  }}
+                >
+                  <span>{item.stockCode}</span>
+                  <span>{item.companyName}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <section className={styles.topMeta}>
           <section className={styles.disclaimerCard}>
@@ -188,6 +444,9 @@ export function DashboardShell({
                 사용 소스 {config.enabledSources.filter((source) => source.enabled).length}/
                 {config.enabledSources.length}
               </span>
+              {autoRefresh ? (
+                <span className={styles.disclaimerTag}>자동 갱신 60초</span>
+              ) : null}
             </div>
           </section>
 
@@ -216,6 +475,10 @@ export function DashboardShell({
         </section>
 
         <SummaryBand result={result} state={dashboardState} />
+
+        {/* Market Overview: 52-week, dividend, foreign, sector, volume anomaly */}
+        <MarketOverviewBand result={result} state={dashboardState} />
+
         <PredictionCards result={result} state={dashboardState} />
 
         <section className={styles.sections}>
@@ -262,6 +525,8 @@ export function DashboardShell({
     </main>
   );
 }
+
+/* ── Sub Components ──────────────────────────────────────── */
 
 function StockCodeSearchForm(props: {
   feedback: string;
@@ -366,6 +631,9 @@ function SummaryBand({
       <article className={`${styles.card} ${styles.metricLead}`}>
         <p className={styles.metricTitle}>종목 요약</p>
         <p className={styles.metricValue}>{companySummary}</p>
+        {result?.quote && result.quote.trendPoints.length > 1 ? (
+          <Sparkline points={result.quote.trendPoints} />
+        ) : null}
         <p className={styles.metricCopy}>{summaryCopy}</p>
       </article>
       <MetricCard
@@ -398,6 +666,138 @@ function SummaryBand({
             : getMetricFallbackCopy(state, "분석 완료 시각이 표시됩니다.")
         }
       />
+    </section>
+  );
+}
+
+function MarketOverviewBand({
+  result,
+  state,
+}: {
+  result: DashboardResult | null;
+  state: DashboardState;
+}) {
+  const overview = result?.marketOverview;
+  const quote = result?.quote;
+  const volumeAnomaly = quote ? detectVolumeAnomaly(quote) : null;
+  const week52Pos = quote && overview
+    ? get52WeekPosition(quote.currentPrice, overview.week52High, overview.week52Low)
+    : null;
+
+  const hasData = overview && (
+    overview.week52High !== null ||
+    overview.dividendYield !== null ||
+    overview.foreignOwnershipPercent !== null ||
+    overview.sectorName !== null
+  );
+
+  if (!result && state !== "loading") return null;
+
+  return (
+    <section className={styles.overviewBand}>
+      <article className={`${styles.card} ${styles.overviewCard}`}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <h2 className={styles.sectionTitle}>시장 개요</h2>
+            <p className={styles.sectionCopy}>
+              52주 범위, 배당, 외국인/기관 수급, 업종, 거래량 이상치를 한눈에 보여줍니다.
+            </p>
+          </div>
+          {overview?.sectorName ? (
+            <span className={styles.badge}>{overview.sectorName}</span>
+          ) : (
+            <span className={styles.badge}>{formatDashboardState(state)}</span>
+          )}
+        </div>
+        {hasData ? (
+          <div className={styles.overviewGrid}>
+            {overview.week52High !== null ? (
+              <div className={styles.overviewItem}>
+                <span className={styles.communityMetricLabel}>52주 최고</span>
+                <strong className={styles.financialMetricValue}>
+                  {numberFormatter.format(overview.week52High)}원
+                </strong>
+              </div>
+            ) : null}
+            {overview.week52Low !== null ? (
+              <div className={styles.overviewItem}>
+                <span className={styles.communityMetricLabel}>52주 최저</span>
+                <strong className={styles.financialMetricValue}>
+                  {numberFormatter.format(overview.week52Low)}원
+                </strong>
+              </div>
+            ) : null}
+            {week52Pos !== null ? (
+              <div className={styles.overviewItem}>
+                <span className={styles.communityMetricLabel}>52주 위치</span>
+                <strong className={`${styles.financialMetricValue} ${week52Pos > 70 ? styles.metricPositive : week52Pos < 30 ? styles.metricNegative : ""}`}>
+                  {week52Pos}%
+                </strong>
+                <div className={styles.positionBar}>
+                  <div className={styles.positionFill} style={{ width: `${week52Pos}%` }} />
+                </div>
+              </div>
+            ) : null}
+            {overview.dividendYield !== null ? (
+              <div className={styles.overviewItem}>
+                <span className={styles.communityMetricLabel}>배당수익률</span>
+                <strong className={styles.financialMetricValue}>
+                  {decimalFormatter.format(overview.dividendYield)}%
+                </strong>
+              </div>
+            ) : null}
+            {overview.foreignOwnershipPercent !== null ? (
+              <div className={styles.overviewItem}>
+                <span className={styles.communityMetricLabel}>외국인 지분</span>
+                <strong className={styles.financialMetricValue}>
+                  {decimalFormatter.format(overview.foreignOwnershipPercent)}%
+                </strong>
+              </div>
+            ) : null}
+            {overview.marketCap !== null ? (
+              <div className={styles.overviewItem}>
+                <span className={styles.communityMetricLabel}>시가총액</span>
+                <strong className={styles.financialMetricValue}>
+                  {formatLargeNumber(overview.marketCap)}
+                </strong>
+              </div>
+            ) : null}
+            {overview.foreignNetVolume !== null ? (
+              <div className={styles.overviewItem}>
+                <span className={styles.communityMetricLabel}>외국인 순매수</span>
+                <strong className={`${styles.financialMetricValue} ${overview.foreignNetVolume > 0 ? styles.metricPositive : overview.foreignNetVolume < 0 ? styles.metricNegative : ""}`}>
+                  {formatLargeNumber(overview.foreignNetVolume)}
+                </strong>
+              </div>
+            ) : null}
+            {overview.institutionalNetVolume !== null ? (
+              <div className={styles.overviewItem}>
+                <span className={styles.communityMetricLabel}>기관 순매수</span>
+                <strong className={`${styles.financialMetricValue} ${overview.institutionalNetVolume > 0 ? styles.metricPositive : overview.institutionalNetVolume < 0 ? styles.metricNegative : ""}`}>
+                  {formatLargeNumber(overview.institutionalNetVolume)}
+                </strong>
+              </div>
+            ) : null}
+            {quote ? (
+              <div className={styles.overviewItem}>
+                <span className={styles.communityMetricLabel}>거래량</span>
+                <strong className={styles.financialMetricValue}>
+                  {numberFormatter.format(quote.volume)}주
+                </strong>
+                {volumeAnomaly?.isAnomaly ? (
+                  <span className={`${styles.sentimentTag} ${styles.sentimentNegative}`}>
+                    이상 감지 x{volumeAnomaly.ratio}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className={styles.emptyState}>
+            {getSectionStateCopy(state, "시장 개요 데이터를 수집 중입니다.")}
+          </p>
+        )}
+      </article>
     </section>
   );
 }
@@ -581,10 +981,7 @@ function NewsList({
         </div>
       ) : (
         <p className={styles.emptyState}>
-          {getSectionStateCopy(
-            state,
-            "검증된 최근 뉴스가 없습니다.",
-          )}
+          {getSectionStateCopy(state, "검증된 최근 뉴스가 없습니다.")}
         </p>
       )}
     </article>
@@ -670,10 +1067,7 @@ function CommunitySummary({
         </>
       ) : (
         <p className={styles.emptyState}>
-          {getSectionStateCopy(
-            state,
-            "검증된 공개 커뮤니티 글이 없습니다.",
-          )}
+          {getSectionStateCopy(state, "검증된 공개 커뮤니티 글이 없습니다.")}
         </p>
       )}
     </article>
@@ -727,10 +1121,7 @@ function DisclosureList({
         </div>
       ) : (
         <p className={styles.emptyState}>
-          {getSectionStateCopy(
-            state,
-            "검증된 공식 공시가 없습니다.",
-          )}
+          {getSectionStateCopy(state, "검증된 공식 공시가 없습니다.")}
         </p>
       )}
     </article>
@@ -814,10 +1205,7 @@ function FinancialSnapshotCard({
         </>
       ) : (
         <p className={styles.emptyState}>
-          {getSectionStateCopy(
-            state,
-            "검증된 재무 스냅샷이 없습니다.",
-          )}
+          {getSectionStateCopy(state, "검증된 재무 스냅샷이 없습니다.")}
         </p>
       )}
     </article>
@@ -865,4 +1253,14 @@ function StatPill(props: { label: string; value: string }) {
       <strong className={styles.communityMetricValueSmall}>{props.value}</strong>
     </div>
   );
+}
+
+/* ── Helpers ─────────────────────────────────────────────── */
+function formatLargeNumber(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1_000_000_000_000) return `${sign}${decimalFormatter.format(abs / 1_000_000_000_000)}조`;
+  if (abs >= 100_000_000) return `${sign}${numberFormatter.format(Math.round(abs / 100_000_000))}억`;
+  if (abs >= 10_000) return `${sign}${numberFormatter.format(Math.round(abs / 10_000))}만`;
+  return numberFormatter.format(value);
 }

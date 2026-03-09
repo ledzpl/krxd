@@ -241,6 +241,18 @@ export const financialSnapshotSchema = z.object({
   capturedAt: isoTimestampSchema,
 });
 
+export const marketOverviewSchema = z.object({
+  week52High: finiteNumberSchema.nullable(),
+  week52Low: finiteNumberSchema.nullable(),
+  dividendYield: finiteNumberSchema.nullable(),
+  foreignOwnershipPercent: finiteNumberSchema.nullable(),
+  sectorName: z.string().trim().nullable(),
+  marketCap: finiteNumberSchema.nullable(),
+  foreignNetVolume: finiteNumberSchema.nullable(),
+  institutionalNetVolume: finiteNumberSchema.nullable(),
+  capturedAt: isoTimestampSchema,
+});
+
 export const financialLookupResultSchema = z.object({
   stockCode: stockCodeSchema,
   companyName: nonEmptyStringSchema,
@@ -288,6 +300,7 @@ export const dashboardResultSchema = z.object({
   community: z.array(communityPostSchema),
   disclosures: z.array(disclosureItemSchema),
   financials: z.array(financialSnapshotSchema),
+  marketOverview: marketOverviewSchema.nullable().default(null),
   signals: horizonSignalListSchema,
   sourceStatus: z.array(sourceStatusSchema),
   warnings: z.array(nonEmptyStringSchema).default([]),
@@ -313,6 +326,7 @@ export type DisclosureLookupResult = z.infer<typeof disclosureLookupResultSchema
 export type FinancialSnapshot = z.infer<typeof financialSnapshotSchema>;
 export type FinancialLookupResult = z.infer<typeof financialLookupResultSchema>;
 export type HorizonSignal = z.infer<typeof horizonSignalSchema>;
+export type MarketOverview = z.infer<typeof marketOverviewSchema>;
 export type DashboardResult = z.infer<typeof dashboardResultSchema>;
 
 type ValidationContext = {

@@ -44,6 +44,7 @@ import {
   resolveQuoteSnapshot,
   resolveStockListing,
 } from "./stock-quote";
+import { resolveMarketOverview } from "./stock-market-overview";
 import { normalizeStockCodeInput } from "./stock-code";
 
 const MAX_ANALYSIS_CACHE_ENTRIES = 250;
@@ -366,6 +367,7 @@ export async function analyzeStockDashboard(
     null;
   let disclosures: Awaited<ReturnType<typeof resolveRecentDisclosures>> | null = null;
   let financials: Awaited<ReturnType<typeof resolveFinancialSummary>> | null = null;
+  let marketOverview: Awaited<ReturnType<typeof resolveMarketOverview>> | null = null;
   let companyNameResolved = false;
   let listingFailureSummary: string | null = null;
   const requiresListingResolution =
@@ -460,7 +462,7 @@ export async function analyzeStockDashboard(
     }
   }
 
-  const [quoteOutcome, disclosureOutcome, financialOutcome] = await Promise.all([
+  const [quoteOutcome, disclosureOutcome, financialOutcome, marketOverviewOutcome] = await Promise.all([
     env.ENABLE_QUOTE_SOURCE
       ? collect(() => resolveQuoteSnapshot(parsedInput.stockCode))
       : Promise.resolve<CollectorOutcome<QuoteSnapshot> | null>(null),
@@ -474,7 +476,12 @@ export async function analyzeStockDashboard(
       : Promise.resolve<CollectorOutcome<Awaited<ReturnType<typeof resolveFinancialSummary>>> | null>(
           null,
         ),
+    collect(() => resolveMarketOverview(parsedInput.stockCode)),
   ]);
+
+  if (marketOverviewOutcome?.ok) {
+    marketOverview = marketOverviewOutcome.data;
+  }
 
   let newsOutcome: CollectorOutcome<Awaited<ReturnType<typeof resolveRecentNews>>> | null =
     null;
@@ -802,6 +809,7 @@ export async function analyzeStockDashboard(
     community: community?.community ?? [],
     disclosures: disclosures?.disclosures ?? [],
     financials: financials?.financials ?? [],
+    marketOverview,
     signals,
     sourceStatus,
     warnings: uniqueStrings(warnings),
