@@ -513,9 +513,9 @@ export async function resolveQuoteSnapshot(
 ): Promise<QuoteSnapshot> {
   const stockCode = validateStockCode(requestedStockCode);
   const trendAnchor = new Date();
-  const [quoteSnapshot, trendPoints] = await Promise.all([
+  const [quoteSnapshot, trendResult] = await Promise.all([
     fetchQuoteSnapshot(stockCode),
-    fetchTrendSeries(stockCode, trendAnchor),
+    fetchTrendSeries(stockCode, trendAnchor).catch(() => [] as { at: string; price: number }[]),
   ]);
 
   return quoteSnapshotSchema.parse({
@@ -524,7 +524,7 @@ export async function resolveQuoteSnapshot(
     changeAmount: quoteSnapshot.changeAmount,
     changePercent: quoteSnapshot.changePercent,
     volume: quoteSnapshot.volume,
-    trendPoints,
+    trendPoints: trendResult,
     capturedAt: quoteSnapshot.capturedAt,
   });
 }
