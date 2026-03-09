@@ -418,8 +418,9 @@ async function fetchQuoteSnapshot(stockCode: string) {
 
   return {
     currentPrice: quoteItem.nv,
-    changeAmount: quoteItem.cv,
-    changePercent: quoteItem.cr,
+    // Naver realtime payload uses the opposite sign convention from the dashboard.
+    changeAmount: -quoteItem.cv,
+    changePercent: -quoteItem.cr,
     volume: quoteItem.aq,
     capturedAt: new Date(response.result.time).toISOString(),
   };
