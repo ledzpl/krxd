@@ -84,6 +84,9 @@ function buildEmptyOverview(capturedAt: string): MarketOverview {
     marketCap: null,
     foreignNetVolume: null,
     institutionalNetVolume: null,
+    sectorPer: null,
+    sectorPbr: null,
+    earningsDate: null,
     capturedAt,
   });
 }
@@ -99,6 +102,9 @@ function parseMarketOverview(markup: string, capturedAt: string): MarketOverview
   let marketCap: number | null = null;
   let foreignNetVolume: number | null = null;
   let institutionalNetVolume: number | null = null;
+  let sectorPer: number | null = null;
+  let sectorPbr: number | null = null;
+  let earningsDate: string | null = null;
 
   // 52-week high/low from aside_invest_info or tab_con1
   $("table").each((_, table) => {
@@ -157,8 +163,47 @@ function parseMarketOverview(markup: string, capturedAt: string): MarketOverview
     }
   });
 
-  // Fallback: try parsing from inline text patterns
+  // Sector PER/PBR from the page (동일업종 PER/PBR)
+  $("table").each((_, table) => {
+    $(table).find("tr").each((_, tr) => {
+      const thText = cleanText($(tr).find("th, td:first-child").first().text());
+      const tdTexts = $(tr).find("td").toArray().map((td) => cleanText($(td).text()));
+      if ((thText.includes("동일업종 PER") || thText.includes("업종PER") || thText.includes("동일업종PER")) && tdTexts.length > 0) {
+        sectorPer = parseNumberFromText(tdTexts[0]);
+      }
+      if ((thText.includes("동일업종 PBR") || thText.includes("업종PBR") || thText.includes("동일업종PBR")) && tdTexts.length > 0) {
+        sectorPbr = parseNumberFromText(tdTexts[0]);
+      }
+    });
+  });
+
+  // Earnings date estimation from fiscal period
   const fullText = $.text();
+
+  // Try to find sector PER/PBR from text patterns
+  if (sectorPer === null) {
+    const sectorPerMatch = fullText.match(/동일업종\s*PER[^\d]*([\d.]+)/);
+    if (sectorPerMatch) sectorPer = parseNumberFromText(sectorPerMatch[1]);
+  }
+  if (sectorPbr === null) {
+    const sectorPbrMatch = fullText.match(/동일업종\s*PBR[^\d]*([\d.]+)/);
+    if (sectorPbrMatch) sectorPbr = parseNumberFromText(sectorPbrMatch[1]);
+  }
+
+  // Estimate next earnings date from current quarter
+  const now = new Date();
+  const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+  const earningsMonths = [3, 5, 8, 11]; // typical Korean earnings months
+  for (const m of earningsMonths) {
+    const candidate = new Date(now.getFullYear(), m - 1, 15);
+    if (candidate > now) {
+      earningsDate = candidate.toISOString().slice(0, 10);
+      break;
+    }
+  }
+  if (!earningsDate) {
+    earningsDate = new Date(now.getFullYear() + 1, 2, 15).toISOString().slice(0, 10);
+  }
   if (week52High === null) {
     const highMatch = fullText.match(/52주\s*최고[^\d]*([\d,]+)/);
     if (highMatch) week52High = parseNumberFromText(highMatch[1]);
@@ -188,6 +233,9 @@ function parseMarketOverview(markup: string, capturedAt: string): MarketOverview
     marketCap,
     foreignNetVolume,
     institutionalNetVolume,
+    sectorPer,
+    sectorPbr,
+    earningsDate,
     capturedAt,
   });
 }

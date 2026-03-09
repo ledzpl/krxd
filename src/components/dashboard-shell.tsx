@@ -1,10 +1,18 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { Component, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { DashboardResult, SourceStatus } from "@/lib/normalized-schemas";
 import { sanitizeStockCodeDigits } from "@/lib/stock-code";
+import {
+  calculateBollingerBands,
+  calculateCorrelation,
+  calculateEMA,
+  calculateMA,
+  calculateMACD,
+  calculateRSI,
+} from "@/lib/technical-indicators";
 
 import {
   DEFAULT_HORIZONS,
@@ -487,7 +495,7 @@ export function DashboardShell({
 
         {/* Charts Section */}
         {result?.quote && result.quote.trendPoints.length >= 10 ? (
-          <section className={styles.chartSection}>
+          <LazySection className={styles.chartSection}>
             <article className={styles.card}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -512,6 +520,38 @@ export function DashboardShell({
               </div>
               <CandleChart points={result.quote.trendPoints} />
             </article>
+            <article className={styles.card}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>MACD</h2>
+                  <p className={styles.sectionCopy}>
+                    12/26 EMA 기반 모멘텀 지표와 시그널(9) 라인을 보여줍니다.
+                  </p>
+                </div>
+                <span className={styles.badge}>Momentum</span>
+              </div>
+              <MACDChart points={result.quote.trendPoints} />
+            </article>
+            <article className={styles.card}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>거래량 프로필</h2>
+                  <p className={styles.sectionCopy}>
+                    시간대별 가격 변동 강도를 히트맵으로 보여줍니다.
+                  </p>
+                </div>
+                <span className={styles.badge}>Heatmap</span>
+              </div>
+              <VolumeProfile points={result.quote.trendPoints} />
+            </article>
+          </LazySection>
+        ) : null}
+
+        {/* Sector Comparison + Earnings Calendar */}
+        {result ? (
+          <section className={styles.chartSection}>
+            <SectorComparison result={result} />
+            <EarningsCalendar result={result} />
           </section>
         ) : null}
 
@@ -1337,36 +1377,58 @@ function StatPill(props: { label: string; value: string }) {
   );
 }
 
-/* ── Technical Indicators ────────────────────────────────── */
-function calculateMA(prices: number[], period: number): (number | null)[] {
-  return prices.map((_, i) => {
-    if (i < period - 1) return null;
-    let sum = 0;
-    for (let j = i - period + 1; j <= i; j++) sum += prices[j];
-    return sum / period;
-  });
+/* ── Error Boundary ──────────────────────────────────────── */
+type ErrorBoundaryProps = { fallback?: ReactNode; children: ReactNode };
+type ErrorBoundaryState = { hasError: boolean };
+
+class ChartErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? (
+        <p className={styles.emptyState}>이 섹션을 렌더링하는 중 오류가 발생했습니다.</p>
+      );
+    }
+    return this.props.children;
+  }
 }
 
-function calculateRSI(prices: number[], period = 14): (number | null)[] {
-  const rsi: (number | null)[] = new Array(prices.length).fill(null);
-  if (prices.length < period + 1) return rsi;
-  let avgGain = 0;
-  let avgLoss = 0;
-  for (let i = 1; i <= period; i++) {
-    const diff = prices[i] - prices[i - 1];
-    if (diff > 0) avgGain += diff; else avgLoss += Math.abs(diff);
-  }
-  avgGain /= period;
-  avgLoss /= period;
-  rsi[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-  for (let i = period + 1; i < prices.length; i++) {
-    const diff = prices[i] - prices[i - 1];
-    avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
-    avgLoss = (avgLoss * (period - 1) + (diff < 0 ? Math.abs(diff) : 0)) / period;
-    rsi[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-  }
-  return rsi;
+/* ── Lazy Section (Intersection Observer) ────────────────── */
+function LazySection({ children, className }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setIsVisible(true); observer.disconnect(); } },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className={className}>
+      {isVisible ? (
+        <ChartErrorBoundary>{children}</ChartErrorBoundary>
+      ) : (
+        <div className={styles.lazyPlaceholder} />
+      )}
+    </div>
+  );
 }
+
+/* ── Technical Indicators (imported from @/lib/technical-indicators) ── */
 
 type CandleData = { open: number; high: number; low: number; close: number; label: string };
 
@@ -1389,7 +1451,8 @@ function aggregateCandles(points: Array<{ at: string; price: number }>, groupMin
   }));
 }
 
-/* ── Technical Chart (Price + MA + RSI) ──────────────────── */
+
+/* ── Technical Chart (Price + MA + Bollinger + RSI) ──────── */
 function TechnicalChart({ points }: { points: Array<{ at: string; price: number }> }) {
   if (points.length < 5) return null;
   const W = 600, H_PRICE = 160, H_RSI = 60, PAD = 30;
@@ -1397,8 +1460,10 @@ function TechnicalChart({ points }: { points: Array<{ at: string; price: number 
   const ma5 = calculateMA(prices, 5);
   const ma20 = calculateMA(prices, 20);
   const rsi = calculateRSI(prices, 14);
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
+  const bb = calculateBollingerBands(prices, 20, 2);
+  const allValues = [...prices, ...bb.upper.filter((v): v is number => v !== null), ...bb.lower.filter((v): v is number => v !== null)];
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
   const range = max - min || 1;
   const xStep = (W - PAD * 2) / (prices.length - 1);
 
@@ -1410,9 +1475,13 @@ function TechnicalChart({ points }: { points: Array<{ at: string; price: number 
   const ma20Path = ma20.map((v, i) => v !== null ? `${ma20.slice(0, i).some((x) => x !== null) ? "L" : "M"}${(PAD + i * xStep).toFixed(1)},${priceY(v).toFixed(1)}` : "").filter(Boolean).join(" ");
   const rsiPath = rsi.map((v, i) => v !== null ? `${rsi.slice(0, i).some((x) => x !== null) ? "L" : "M"}${(PAD + i * xStep).toFixed(1)},${rsiY(v).toFixed(1)}` : "").filter(Boolean).join(" ");
 
+  // Bollinger band fill
+  const bbUpperPath = bb.upper.map((v, i) => v !== null ? `${bb.upper.slice(0, i).some((x) => x !== null) ? "L" : "M"}${(PAD + i * xStep).toFixed(1)},${priceY(v).toFixed(1)}` : "").filter(Boolean).join(" ");
+  const bbLowerReverse = [...bb.lower].map((v, i) => ({ v, i })).filter((x) => x.v !== null).reverse()
+    .map((x) => `L${(PAD + x.i * xStep).toFixed(1)},${priceY(x.v!).toFixed(1)}`).join(" ");
+
   return (
     <svg viewBox={`0 0 ${W} ${H_PRICE + H_RSI + 16}`} className={styles.techChart} aria-label="기술적 분석 차트">
-      {/* Price grid */}
       {[0, 0.25, 0.5, 0.75, 1].map((f) => (
         <g key={f}>
           <line x1={PAD} y1={priceY(min + range * f)} x2={W - PAD} y2={priceY(min + range * f)} stroke="rgba(255,255,255,0.06)" />
@@ -1421,19 +1490,20 @@ function TechnicalChart({ points }: { points: Array<{ at: string; price: number 
           </text>
         </g>
       ))}
-      {/* Price line */}
+      {/* Bollinger Band fill */}
+      {bbUpperPath && bbLowerReverse && (
+        <path d={`${bbUpperPath} ${bbLowerReverse} Z`} fill="rgba(77,180,255,0.06)" />
+      )}
       <path d={pricePath} fill="none" stroke="var(--ink-strong)" strokeWidth="1.5" />
-      {/* MA5 */}
       {ma5Path && <path d={ma5Path} fill="none" stroke="var(--accent)" strokeWidth="1" opacity="0.7" />}
-      {/* MA20 */}
       {ma20Path && <path d={ma20Path} fill="none" stroke="var(--info)" strokeWidth="1" opacity="0.7" />}
-      {/* Legend */}
       <text x={PAD} y={12} fill="var(--ink-muted)" fontSize="8">
         <tspan fill="var(--ink-strong)">Price</tspan>
-        <tspan dx="8" fill="var(--accent)">MA5</tspan>
-        <tspan dx="8" fill="var(--info)">MA20</tspan>
+        <tspan dx="6" fill="var(--accent)">MA5</tspan>
+        <tspan dx="6" fill="var(--info)">MA20</tspan>
+        <tspan dx="6" fill="rgba(77,180,255,0.5)">BB(20,2)</tspan>
       </text>
-      {/* RSI section */}
+      {/* RSI */}
       <line x1={PAD} y1={rsiY(70)} x2={W - PAD} y2={rsiY(70)} stroke="rgba(255,138,76,0.3)" strokeDasharray="3,3" />
       <line x1={PAD} y1={rsiY(30)} x2={W - PAD} y2={rsiY(30)} stroke="rgba(0,220,195,0.3)" strokeDasharray="3,3" />
       <text x={PAD - 4} y={rsiY(70) + 3} fill="var(--warning)" fontSize="7" textAnchor="end">70</text>
@@ -1446,6 +1516,218 @@ function TechnicalChart({ points }: { points: Array<{ at: string; price: number 
         )}
       </text>
     </svg>
+  );
+}
+
+/* ── MACD Chart ──────────────────────────────────────────── */
+function MACDChart({ points }: { points: Array<{ at: string; price: number }> }) {
+  const prices = points.map((p) => p.price);
+  const macd = calculateMACD(prices);
+  if (!macd || macd.histogram.length < 2) return null;
+  const W = 600, H = 100, PAD = 30;
+  const { macdLine, signalLine, histogram } = macd;
+  const allValues = [...macdLine, ...signalLine, ...histogram];
+  const maxAbs = Math.max(...allValues.map(Math.abs), 0.01);
+  const xStep = (W - PAD * 2) / (histogram.length - 1);
+
+  function y(v: number) { return PAD + (H - PAD * 2) * (1 - v / maxAbs) / 2; }
+  const zeroY = y(0);
+
+  const macdPath = macdLine.map((v, i) => `${i === 0 ? "M" : "L"}${(PAD + i * xStep).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const signalPath = signalLine.map((v, i) => `${i === 0 ? "M" : "L"}${(PAD + i * xStep).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className={styles.techChart} aria-label="MACD 차트">
+      <line x1={PAD} y1={zeroY} x2={W - PAD} y2={zeroY} stroke="rgba(255,255,255,0.10)" />
+      {histogram.map((v, i) => {
+        const x = PAD + i * xStep;
+        const barH = Math.abs(y(v) - zeroY);
+        const barY = v >= 0 ? y(v) : zeroY;
+        return <rect key={i} x={x - 1.5} y={barY} width={3} height={barH} fill={v >= 0 ? "var(--accent)" : "var(--warning)"} opacity="0.5" rx="0.5" />;
+      })}
+      <path d={macdPath} fill="none" stroke="var(--info)" strokeWidth="1.2" />
+      <path d={signalPath} fill="none" stroke="var(--warning)" strokeWidth="1" opacity="0.8" />
+      <text x={PAD} y={12} fill="var(--ink-muted)" fontSize="8">
+        <tspan fill="var(--info)">MACD</tspan>
+        <tspan dx="6" fill="var(--warning)">Signal(9)</tspan>
+        <tspan dx="6" fill="var(--ink-muted)">Histogram</tspan>
+      </text>
+    </svg>
+  );
+}
+
+/* ── Volume Profile (time-of-day activity) ───────────────── */
+function VolumeProfile({ points }: { points: Array<{ at: string; price: number }> }) {
+  if (points.length < 20) return null;
+  const hourBuckets = new Map<number, { count: number; movement: number }>();
+  for (let i = 1; i < points.length; i++) {
+    const hour = new Date(points[i].at).getHours();
+    const move = Math.abs(points[i].price - points[i - 1].price);
+    const bucket = hourBuckets.get(hour) ?? { count: 0, movement: 0 };
+    bucket.count += 1;
+    bucket.movement += move;
+    hourBuckets.set(hour, bucket);
+  }
+  const hours = [...hourBuckets.entries()].sort((a, b) => a[0] - b[0]);
+  if (hours.length < 2) return null;
+  const maxMove = Math.max(...hours.map(([, b]) => b.movement), 1);
+  const W = 400, H = 100, PAD = 30;
+  const barW = Math.max(8, (W - PAD * 2) / hours.length - 4);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className={styles.techChart} aria-label="거래량 프로필">
+      {hours.map(([hour, bucket], i) => {
+        const x = PAD + i * ((W - PAD * 2) / hours.length) + barW / 4;
+        const barH = (bucket.movement / maxMove) * (H - PAD - 16);
+        const intensity = bucket.movement / maxMove;
+        const color = intensity > 0.7 ? "var(--warning)" : intensity > 0.4 ? "var(--info)" : "var(--accent)";
+        return (
+          <g key={hour}>
+            <rect x={x} y={H - PAD - barH} width={barW} height={barH} fill={color} opacity="0.6" rx="2" />
+            <text x={x + barW / 2} y={H - PAD + 10} fill="var(--ink-muted)" fontSize="7" textAnchor="middle">{hour}시</text>
+          </g>
+        );
+      })}
+      <text x={PAD} y={10} fill="var(--ink-muted)" fontSize="8">시간대별 가격 변동 강도</text>
+    </svg>
+  );
+}
+
+/* ── Sector Comparison ───────────────────────────────────── */
+function SectorComparison({ result }: { result: DashboardResult }) {
+  const overview = result.marketOverview;
+  const financial = result.financials[0];
+  if (!overview || !financial) return null;
+  const stockPer = financial.per;
+  const stockPbr = financial.pbr;
+  const { sectorPer, sectorPbr, sectorName } = overview;
+  if (stockPer === null && stockPbr === null) return null;
+  if (sectorPer === null && sectorPbr === null) return null;
+
+  const metrics = [
+    stockPer !== null && sectorPer !== null ? { label: "PER", stock: stockPer, sector: sectorPer } : null,
+    stockPbr !== null && sectorPbr !== null ? { label: "PBR", stock: stockPbr, sector: sectorPbr } : null,
+  ].filter((m): m is NonNullable<typeof m> => m !== null);
+
+  if (metrics.length === 0) return null;
+
+  const W = 300, H = 80, PAD = 40;
+  const barH = 14;
+
+  return (
+    <article className={styles.card}>
+      <div className={styles.sectionHeader}>
+        <div>
+          <h2 className={styles.sectionTitle}>업종 비교</h2>
+          <p className={styles.sectionCopy}>
+            {sectorName ? `${sectorName} 업종` : "동일업종"} 평균 대비 밸류에이션 위치를 비교합니다.
+          </p>
+        </div>
+        <span className={styles.badge}>{sectorName ?? "업종"}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className={styles.techChart} aria-label="업종 비교">
+        {metrics.map((m, i) => {
+          const maxVal = Math.max(m.stock, m.sector) * 1.3;
+          const stockW = (m.stock / maxVal) * (W - PAD * 2);
+          const sectorW = (m.sector / maxVal) * (W - PAD * 2);
+          const yBase = 14 + i * 36;
+          const stockTone = m.stock < m.sector ? "var(--accent)" : m.stock > m.sector * 1.5 ? "var(--warning)" : "var(--info)";
+          return (
+            <g key={m.label}>
+              <text x={PAD - 4} y={yBase + 8} fill="var(--ink-muted)" fontSize="8" textAnchor="end">{m.label}</text>
+              <rect x={PAD} y={yBase} width={stockW} height={barH} fill={stockTone} opacity="0.7" rx="3" />
+              <text x={PAD + stockW + 4} y={yBase + 10} fill="var(--ink-soft)" fontSize="8">{decimalFormatter.format(m.stock)}</text>
+              <rect x={PAD} y={yBase + barH + 2} width={sectorW} height={barH} fill="rgba(255,255,255,0.15)" rx="3" />
+              <text x={PAD + sectorW + 4} y={yBase + barH + 12} fill="var(--ink-muted)" fontSize="7">업종 {decimalFormatter.format(m.sector)}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </article>
+  );
+}
+
+/* ── Earnings Calendar ───────────────────────────────────── */
+function EarningsCalendar({ result }: { result: DashboardResult }) {
+  const overview = result.marketOverview;
+  const financial = result.financials[0];
+  if (!overview?.earningsDate && !financial) return null;
+
+  const earningsDate = overview?.earningsDate;
+  const daysUntil = earningsDate ? Math.ceil((new Date(earningsDate).getTime() - Date.now()) / (86400000)) : null;
+
+  return (
+    <article className={styles.card}>
+      <div className={styles.sectionHeader}>
+        <div>
+          <h2 className={styles.sectionTitle}>실적 캘린더</h2>
+          <p className={styles.sectionCopy}>예상 실적 발표 시점과 현재 회계 기간을 보여줍니다.</p>
+        </div>
+        <span className={styles.badge}>
+          {daysUntil !== null && daysUntil > 0 ? `D-${daysUntil}` : "확인 필요"}
+        </span>
+      </div>
+      <div className={styles.overviewGrid}>
+        {financial ? (
+          <div className={styles.overviewItem}>
+            <span className={styles.communityMetricLabel}>현재 회계기간</span>
+            <strong className={styles.financialMetricValue}>{financial.fiscalPeriod}</strong>
+          </div>
+        ) : null}
+        {earningsDate ? (
+          <div className={styles.overviewItem}>
+            <span className={styles.communityMetricLabel}>다음 실적 예상</span>
+            <strong className={styles.financialMetricValue}>{earningsDate}</strong>
+          </div>
+        ) : null}
+        {daysUntil !== null && daysUntil > 0 ? (
+          <div className={styles.overviewItem}>
+            <span className={styles.communityMetricLabel}>남은 일수</span>
+            <strong className={`${styles.financialMetricValue} ${daysUntil <= 14 ? styles.metricNegative : ""}`}>
+              {daysUntil}일
+            </strong>
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+/* ── Correlation Matrix (for compare panel) ──────────────── */
+function CorrelationMatrix({ results }: { results: DashboardResult[] }) {
+  if (results.length < 2) return null;
+  const priceSeries = results.map((r) => ({
+    name: r.companyName,
+    prices: r.quote?.trendPoints.map((p) => p.price) ?? [],
+  }));
+
+  const matrix: Array<{ a: string; b: string; corr: number | null }> = [];
+  for (let i = 0; i < priceSeries.length; i++) {
+    for (let j = i + 1; j < priceSeries.length; j++) {
+      matrix.push({
+        a: priceSeries[i].name,
+        b: priceSeries[j].name,
+        corr: calculateCorrelation(priceSeries[i].prices, priceSeries[j].prices),
+      });
+    }
+  }
+
+  if (matrix.every((m) => m.corr === null)) return null;
+
+  return (
+    <div className={styles.overviewGrid}>
+      {matrix.map((m) => (
+        <div className={styles.overviewItem} key={`${m.a}-${m.b}`}>
+          <span className={styles.communityMetricLabel}>{m.a} vs {m.b}</span>
+          <strong className={`${styles.financialMetricValue} ${m.corr !== null && m.corr > 0.7 ? styles.metricPositive : m.corr !== null && m.corr < -0.3 ? styles.metricNegative : ""}`}>
+            {m.corr !== null ? decimalFormatter.format(m.corr) : "N/A"}
+          </strong>
+          <span className={styles.communityMetricLabel} style={{ textTransform: "none", letterSpacing: 0 }}>
+            {m.corr !== null ? (m.corr > 0.7 ? "강한 양의 상관" : m.corr > 0.3 ? "약한 양의 상관" : m.corr > -0.3 ? "상관 없음" : m.corr > -0.7 ? "약한 음의 상관" : "강한 음의 상관") : "데이터 부족"}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -1744,6 +2026,13 @@ function ComparePanel({
               </tr>
             </tbody>
           </table>
+          {/* Correlation Analysis */}
+          {allResults.length >= 2 ? (
+            <div style={{ marginTop: 12 }}>
+              <p className={styles.diagnosticTitle}>상관관계 분석</p>
+              <CorrelationMatrix results={allResults} />
+            </div>
+          ) : null}
         </div>
       ) : (
         <p className={styles.emptyState}>비교할 종목 코드를 입력하면 현재 종목과 나란히 비교합니다.</p>

@@ -250,6 +250,9 @@ export const marketOverviewSchema = z.object({
   marketCap: finiteNumberSchema.nullable(),
   foreignNetVolume: finiteNumberSchema.nullable(),
   institutionalNetVolume: finiteNumberSchema.nullable(),
+  sectorPer: finiteNumberSchema.nullable(),
+  sectorPbr: finiteNumberSchema.nullable(),
+  earningsDate: z.string().trim().nullable(),
   capturedAt: isoTimestampSchema,
 });
 
