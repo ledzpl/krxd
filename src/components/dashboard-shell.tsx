@@ -261,6 +261,7 @@ export function DashboardShell({
   const { theme, toggle: toggleTheme } = useTheme();
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [shareConfirm, setShareConfirm] = useState(false);
+  const signalHistory = useSignalHistory(result);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(AUTO_REFRESH_KEY);
@@ -373,6 +374,9 @@ export function DashboardShell({
                   </button>
                   {result ? (
                     <>
+                      <button className={styles.actionBtn} type="button" onClick={handlePrint}>
+                        PDF
+                      </button>
                       <button className={styles.actionBtn} type="button" onClick={handleShare}>
                         {shareConfirm ? "Copied!" : "Share"}
                       </button>
@@ -480,6 +484,84 @@ export function DashboardShell({
         <MarketOverviewBand result={result} state={dashboardState} />
 
         <PredictionCards result={result} state={dashboardState} />
+
+        {/* Charts Section */}
+        {result?.quote && result.quote.trendPoints.length >= 10 ? (
+          <section className={styles.chartSection}>
+            <article className={styles.card}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>기술적 분석</h2>
+                  <p className={styles.sectionCopy}>
+                    가격 추이, MA5/MA20 이동평균선, RSI(14) 지표를 보여줍니다.
+                  </p>
+                </div>
+                <span className={styles.badge}>{result.quote.trendPoints.length}포인트</span>
+              </div>
+              <TechnicalChart points={result.quote.trendPoints} />
+            </article>
+            <article className={styles.card}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>시간별 캔들차트</h2>
+                  <p className={styles.sectionCopy}>
+                    5분봉 데이터를 시간 단위로 묶어 시가/고가/저가/종가를 표시합니다.
+                  </p>
+                </div>
+                <span className={styles.badge}>Hourly</span>
+              </div>
+              <CandleChart points={result.quote.trendPoints} />
+            </article>
+          </section>
+        ) : null}
+
+        {/* Signal History + Investor Chart */}
+        <section className={styles.chartSection}>
+          {result ? (
+            <article className={styles.card}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>시그널 히스토리</h2>
+                  <p className={styles.sectionCopy}>
+                    과거 분석 기록의 시그널 점수 추이를 보여줍니다.
+                  </p>
+                </div>
+                <span className={styles.badge}>
+                  {signalHistory.filter((e) => e.stockCode === result.stockCode).length}회
+                </span>
+              </div>
+              <SignalHistoryChart history={signalHistory} stockCode={result.stockCode} />
+              {signalHistory.filter((e) => e.stockCode === result.stockCode).length < 2 ? (
+                <p className={styles.emptyState}>
+                  같은 종목을 2회 이상 분석하면 시그널 추이 그래프가 표시됩니다.
+                </p>
+              ) : null}
+            </article>
+          ) : null}
+          {result?.marketOverview ? (
+            <article className={styles.card}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>투자자별 수급</h2>
+                  <p className={styles.sectionCopy}>
+                    외국인과 기관의 순매수 규모를 시각적으로 비교합니다.
+                  </p>
+                </div>
+                <span className={styles.badge}>수급 차트</span>
+              </div>
+              <InvestorChart overview={result.marketOverview} />
+              {result.marketOverview.foreignNetVolume === null && result.marketOverview.institutionalNetVolume === null ? (
+                <p className={styles.emptyState}>투자자별 수급 데이터를 수집하지 못했습니다.</p>
+              ) : null}
+            </article>
+          ) : null}
+        </section>
+
+        {/* Compare Panel */}
+        <ComparePanel
+          currentResult={result}
+          onNavigate={(code) => router.push(`/${code}`)}
+        />
 
         <section className={styles.sections}>
           <NewsList result={result} state={dashboardState} />
@@ -1253,6 +1335,426 @@ function StatPill(props: { label: string; value: string }) {
       <strong className={styles.communityMetricValueSmall}>{props.value}</strong>
     </div>
   );
+}
+
+/* ── Technical Indicators ────────────────────────────────── */
+function calculateMA(prices: number[], period: number): (number | null)[] {
+  return prices.map((_, i) => {
+    if (i < period - 1) return null;
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += prices[j];
+    return sum / period;
+  });
+}
+
+function calculateRSI(prices: number[], period = 14): (number | null)[] {
+  const rsi: (number | null)[] = new Array(prices.length).fill(null);
+  if (prices.length < period + 1) return rsi;
+  let avgGain = 0;
+  let avgLoss = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = prices[i] - prices[i - 1];
+    if (diff > 0) avgGain += diff; else avgLoss += Math.abs(diff);
+  }
+  avgGain /= period;
+  avgLoss /= period;
+  rsi[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  for (let i = period + 1; i < prices.length; i++) {
+    const diff = prices[i] - prices[i - 1];
+    avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + (diff < 0 ? Math.abs(diff) : 0)) / period;
+    rsi[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return rsi;
+}
+
+type CandleData = { open: number; high: number; low: number; close: number; label: string };
+
+function aggregateCandles(points: Array<{ at: string; price: number }>, groupMinutes: number): CandleData[] {
+  if (points.length === 0) return [];
+  const groups = new Map<string, number[]>();
+  for (const p of points) {
+    const d = new Date(p.at);
+    const bucket = new Date(Math.floor(d.getTime() / (groupMinutes * 60000)) * groupMinutes * 60000);
+    const key = bucket.toISOString();
+    const arr = groups.get(key);
+    if (arr) arr.push(p.price); else groups.set(key, [p.price]);
+  }
+  return [...groups.entries()].map(([key, prices]) => ({
+    open: prices[0],
+    high: Math.max(...prices),
+    low: Math.min(...prices),
+    close: prices[prices.length - 1],
+    label: formatTimestamp(key),
+  }));
+}
+
+/* ── Technical Chart (Price + MA + RSI) ──────────────────── */
+function TechnicalChart({ points }: { points: Array<{ at: string; price: number }> }) {
+  if (points.length < 5) return null;
+  const W = 600, H_PRICE = 160, H_RSI = 60, PAD = 30;
+  const prices = points.map((p) => p.price);
+  const ma5 = calculateMA(prices, 5);
+  const ma20 = calculateMA(prices, 20);
+  const rsi = calculateRSI(prices, 14);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+  const xStep = (W - PAD * 2) / (prices.length - 1);
+
+  function priceY(v: number) { return PAD + (H_PRICE - PAD * 2) * (1 - (v - min) / range); }
+  function rsiY(v: number) { return H_PRICE + 8 + (H_RSI - 8) * (1 - v / 100); }
+
+  const pricePath = prices.map((p, i) => `${i === 0 ? "M" : "L"}${(PAD + i * xStep).toFixed(1)},${priceY(p).toFixed(1)}`).join(" ");
+  const ma5Path = ma5.map((v, i) => v !== null ? `${ma5.slice(0, i).some((x) => x !== null) ? "L" : "M"}${(PAD + i * xStep).toFixed(1)},${priceY(v).toFixed(1)}` : "").filter(Boolean).join(" ");
+  const ma20Path = ma20.map((v, i) => v !== null ? `${ma20.slice(0, i).some((x) => x !== null) ? "L" : "M"}${(PAD + i * xStep).toFixed(1)},${priceY(v).toFixed(1)}` : "").filter(Boolean).join(" ");
+  const rsiPath = rsi.map((v, i) => v !== null ? `${rsi.slice(0, i).some((x) => x !== null) ? "L" : "M"}${(PAD + i * xStep).toFixed(1)},${rsiY(v).toFixed(1)}` : "").filter(Boolean).join(" ");
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H_PRICE + H_RSI + 16}`} className={styles.techChart} aria-label="기술적 분석 차트">
+      {/* Price grid */}
+      {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+        <g key={f}>
+          <line x1={PAD} y1={priceY(min + range * f)} x2={W - PAD} y2={priceY(min + range * f)} stroke="rgba(255,255,255,0.06)" />
+          <text x={PAD - 4} y={priceY(min + range * f) + 3} fill="var(--ink-muted)" fontSize="8" textAnchor="end">
+            {numberFormatter.format(Math.round(min + range * f))}
+          </text>
+        </g>
+      ))}
+      {/* Price line */}
+      <path d={pricePath} fill="none" stroke="var(--ink-strong)" strokeWidth="1.5" />
+      {/* MA5 */}
+      {ma5Path && <path d={ma5Path} fill="none" stroke="var(--accent)" strokeWidth="1" opacity="0.7" />}
+      {/* MA20 */}
+      {ma20Path && <path d={ma20Path} fill="none" stroke="var(--info)" strokeWidth="1" opacity="0.7" />}
+      {/* Legend */}
+      <text x={PAD} y={12} fill="var(--ink-muted)" fontSize="8">
+        <tspan fill="var(--ink-strong)">Price</tspan>
+        <tspan dx="8" fill="var(--accent)">MA5</tspan>
+        <tspan dx="8" fill="var(--info)">MA20</tspan>
+      </text>
+      {/* RSI section */}
+      <line x1={PAD} y1={rsiY(70)} x2={W - PAD} y2={rsiY(70)} stroke="rgba(255,138,76,0.3)" strokeDasharray="3,3" />
+      <line x1={PAD} y1={rsiY(30)} x2={W - PAD} y2={rsiY(30)} stroke="rgba(0,220,195,0.3)" strokeDasharray="3,3" />
+      <text x={PAD - 4} y={rsiY(70) + 3} fill="var(--warning)" fontSize="7" textAnchor="end">70</text>
+      <text x={PAD - 4} y={rsiY(30) + 3} fill="var(--accent)" fontSize="7" textAnchor="end">30</text>
+      {rsiPath && <path d={rsiPath} fill="none" stroke="#c084fc" strokeWidth="1.2" />}
+      <text x={PAD} y={H_PRICE + 6} fill="var(--ink-muted)" fontSize="8">
+        <tspan fill="#c084fc">RSI(14)</tspan>
+        {rsi.filter((v): v is number => v !== null).length > 0 && (
+          <tspan dx="6" fill="var(--ink-soft)">{decimalFormatter.format(rsi.filter((v): v is number => v !== null).pop()!)}</tspan>
+        )}
+      </text>
+    </svg>
+  );
+}
+
+/* ── Candle Chart ────────────────────────────────────────── */
+function CandleChart({ points }: { points: Array<{ at: string; price: number }> }) {
+  if (points.length < 10) return null;
+  const candles = aggregateCandles(points, 60); // hourly candles
+  if (candles.length < 2) return null;
+  const W = 600, H = 160, PAD = 30;
+  const allPrices = candles.flatMap((c) => [c.high, c.low]);
+  const min = Math.min(...allPrices);
+  const max = Math.max(...allPrices);
+  const range = max - min || 1;
+  const candleW = Math.max(3, Math.min(12, (W - PAD * 2) / candles.length - 2));
+  const step = (W - PAD * 2) / candles.length;
+
+  function y(v: number) { return PAD + (H - PAD * 2) * (1 - (v - min) / range); }
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className={styles.techChart} aria-label="시간별 캔들차트">
+      {[0, 0.5, 1].map((f) => (
+        <g key={f}>
+          <line x1={PAD} y1={y(min + range * f)} x2={W - PAD} y2={y(min + range * f)} stroke="rgba(255,255,255,0.06)" />
+          <text x={PAD - 4} y={y(min + range * f) + 3} fill="var(--ink-muted)" fontSize="8" textAnchor="end">
+            {numberFormatter.format(Math.round(min + range * f))}
+          </text>
+        </g>
+      ))}
+      {candles.map((c, i) => {
+        const x = PAD + i * step + step / 2;
+        const isUp = c.close >= c.open;
+        const color = isUp ? "var(--accent)" : "var(--warning)";
+        const bodyTop = y(Math.max(c.open, c.close));
+        const bodyBottom = y(Math.min(c.open, c.close));
+        const bodyH = Math.max(1, bodyBottom - bodyTop);
+        return (
+          <g key={i}>
+            <line x1={x} y1={y(c.high)} x2={x} y2={y(c.low)} stroke={color} strokeWidth="1" />
+            <rect x={x - candleW / 2} y={bodyTop} width={candleW} height={bodyH} fill={isUp ? color : color} rx="1" opacity="0.85" />
+          </g>
+        );
+      })}
+      <text x={PAD} y={12} fill="var(--ink-muted)" fontSize="8">시간별 캔들 ({candles.length}봉)</text>
+    </svg>
+  );
+}
+
+/* ── Signal History ──────────────────────────────────────── */
+const SIGNAL_HISTORY_KEY = "kstock-dashboard.signal-history";
+const MAX_SIGNAL_HISTORY = 50;
+
+type SignalHistoryEntry = {
+  stockCode: string;
+  analyzedAt: string;
+  scores: Record<string, number>;
+};
+
+function useSignalHistory(result: DashboardResult | null) {
+  const [history, setHistory] = useState<SignalHistoryEntry[]>([]);
+  const savedRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(SIGNAL_HISTORY_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as SignalHistoryEntry[];
+        if (Array.isArray(parsed)) setHistory(parsed);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (!result || savedRef.current) return;
+    savedRef.current = true;
+    const entry: SignalHistoryEntry = {
+      stockCode: result.stockCode,
+      analyzedAt: result.analyzedAt,
+      scores: Object.fromEntries(result.signals.map((s) => [s.horizon, s.score])),
+    };
+    setHistory((prev) => {
+      const next = [entry, ...prev.filter((e) => !(e.stockCode === entry.stockCode && e.analyzedAt === entry.analyzedAt))].slice(0, MAX_SIGNAL_HISTORY);
+      try { window.localStorage.setItem(SIGNAL_HISTORY_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+    return () => { savedRef.current = false; };
+  }, [result]);
+
+  return history;
+}
+
+function SignalHistoryChart({ history, stockCode }: { history: SignalHistoryEntry[]; stockCode: string }) {
+  const entries = history.filter((e) => e.stockCode === stockCode).reverse();
+  if (entries.length < 2) return null;
+  const W = 400, H = 100, PAD = 24;
+  const xStep = (W - PAD * 2) / (entries.length - 1);
+  const horizons = ["1d", "1w", "1m"] as const;
+  const colors = { "1d": "var(--accent)", "1w": "var(--info)", "1m": "#c084fc" };
+
+  function y(score: number) { return PAD + (H - PAD * 2) * (1 - (score + 1) / 2); }
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className={styles.techChart} aria-label="시그널 히스토리">
+      <line x1={PAD} y1={y(0)} x2={W - PAD} y2={y(0)} stroke="rgba(255,255,255,0.10)" strokeDasharray="3,3" />
+      <text x={PAD - 4} y={y(0) + 3} fill="var(--ink-muted)" fontSize="7" textAnchor="end">0</text>
+      {horizons.map((h) => {
+        const path = entries
+          .map((e, i) => {
+            const score = e.scores[h] ?? 0;
+            return `${i === 0 ? "M" : "L"}${(PAD + i * xStep).toFixed(1)},${y(score).toFixed(1)}`;
+          })
+          .join(" ");
+        return <path key={h} d={path} fill="none" stroke={colors[h]} strokeWidth="1.5" opacity="0.8" />;
+      })}
+      <text x={PAD} y={10} fill="var(--ink-muted)" fontSize="8">
+        <tspan fill="var(--accent)">1D</tspan>
+        <tspan dx="6" fill="var(--info)">1W</tspan>
+        <tspan dx="6" fill="#c084fc">1M</tspan>
+        <tspan dx="6" fill="var(--ink-muted)">({entries.length}회 기록)</tspan>
+      </text>
+    </svg>
+  );
+}
+
+/* ── Investor Chart ──────────────────────────────────────── */
+function InvestorChart({ overview }: { overview: DashboardResult["marketOverview"] }) {
+  if (!overview) return null;
+  const { foreignNetVolume, institutionalNetVolume } = overview;
+  if (foreignNetVolume === null && institutionalNetVolume === null) return null;
+  const values = [
+    { label: "외국인", value: foreignNetVolume ?? 0 },
+    { label: "기관", value: institutionalNetVolume ?? 0 },
+  ];
+  const maxAbs = Math.max(...values.map((v) => Math.abs(v.value)), 1);
+  const W = 300, H = 80, BAR_H = 20, PAD = 50;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className={styles.techChart} aria-label="투자자별 수급">
+      <line x1={W / 2} y1={0} x2={W / 2} y2={H} stroke="rgba(255,255,255,0.08)" />
+      {values.map((v, i) => {
+        const barW = (Math.abs(v.value) / maxAbs) * (W / 2 - PAD);
+        const isPositive = v.value >= 0;
+        const x = isPositive ? W / 2 : W / 2 - barW;
+        const yPos = 16 + i * (BAR_H + 14);
+        const color = isPositive ? "var(--accent)" : "var(--warning)";
+        return (
+          <g key={v.label}>
+            <text x={isPositive ? W / 2 - 4 : W / 2 + 4} y={yPos + BAR_H / 2 + 3} fill="var(--ink-muted)" fontSize="9" textAnchor={isPositive ? "end" : "start"}>{v.label}</text>
+            <rect x={x} y={yPos} width={barW} height={BAR_H} fill={color} opacity="0.7" rx="3" />
+            <text x={isPositive ? x + barW + 4 : x - 4} y={yPos + BAR_H / 2 + 3} fill="var(--ink-soft)" fontSize="8" textAnchor={isPositive ? "start" : "end"}>
+              {formatLargeNumber(v.value)}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+/* ── Compare Panel ───────────────────────────────────────── */
+function ComparePanel({
+  currentResult,
+  onNavigate,
+}: {
+  currentResult: DashboardResult | null;
+  onNavigate: (code: string) => void;
+}) {
+  const [compareCodes, setCompareCodes] = useState<string[]>([]);
+  const [compareResults, setCompareResults] = useState<DashboardResult[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function addCompare() {
+    const code = sanitizeStockCodeDigits(inputValue);
+    if (!/^\d{6}$/.test(code) || compareCodes.includes(code)) return;
+    if (currentResult && code === currentResult.stockCode) return;
+    setLoading(true);
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ stockCode: code, horizons: ["1d", "1w", "1m"] }),
+      });
+      const payload = await response.json() as DashboardResult | null;
+      if (payload && "signals" in payload) {
+        setCompareCodes((prev) => [...prev, code].slice(0, 3));
+        setCompareResults((prev) => [...prev, payload].slice(0, 3));
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+    setInputValue("");
+  }
+
+  function removeCompare(code: string) {
+    setCompareCodes((prev) => prev.filter((c) => c !== code));
+    setCompareResults((prev) => prev.filter((r) => r.stockCode !== code));
+  }
+
+  const allResults = [currentResult, ...compareResults].filter((r): r is DashboardResult => r !== null);
+  if (!currentResult) return null;
+
+  return (
+    <article className={styles.card}>
+      <div className={styles.sectionHeader}>
+        <div>
+          <h2 className={styles.sectionTitle}>종목 비교</h2>
+          <p className={styles.sectionCopy}>최대 3종목을 추가하여 시그널과 주요 지표를 나란히 비교합니다.</p>
+        </div>
+        <span className={styles.badge}>{allResults.length}종목</span>
+      </div>
+      <div className={styles.fieldRow}>
+        <input
+          className={styles.input}
+          placeholder="비교할 종목 코드"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addCompare(); } }}
+        />
+        <button className={styles.submit} type="button" disabled={loading || compareCodes.length >= 3} onClick={() => void addCompare()}>
+          {loading ? "로딩..." : "추가"}
+        </button>
+      </div>
+      {compareCodes.length > 0 ? (
+        <div className={styles.configStrip}>
+          {compareCodes.map((code) => {
+            const r = compareResults.find((x) => x.stockCode === code);
+            return (
+              <button key={code} className={styles.recentSearchChip} type="button" onClick={() => removeCompare(code)}>
+                <span>{code}</span>
+                <span>{r?.companyName ?? "..."}</span>
+                <span style={{ opacity: 0.5 }}>x</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      {allResults.length > 1 ? (
+        <div className={styles.compareTable}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.tableHeader}>지표</th>
+                {allResults.map((r) => (
+                  <th key={r.stockCode} className={styles.tableHeader}>
+                    <button className={styles.tableHeaderBtn} type="button" onClick={() => onNavigate(r.stockCode)}>
+                      {r.companyName}
+                    </button>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className={styles.tableCell}>현재가</td>
+                {allResults.map((r) => (
+                  <td key={r.stockCode} className={styles.tableCell}>
+                    {r.quote ? `${numberFormatter.format(r.quote.currentPrice)}원` : "--"}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className={styles.tableCell}>등락률</td>
+                {allResults.map((r) => (
+                  <td key={r.stockCode} className={`${styles.tableCell} ${r.quote && r.quote.changePercent > 0 ? styles.metricPositive : r.quote && r.quote.changePercent < 0 ? styles.metricNegative : ""}`}>
+                    {r.quote ? formatSignedPercent(r.quote.changePercent) : "--"}
+                  </td>
+                ))}
+              </tr>
+              {(["1d", "1w", "1m"] as const).map((h) => (
+                <tr key={h}>
+                  <td className={styles.tableCell}>{formatHorizonLabel(h)} 시그널</td>
+                  {allResults.map((r) => {
+                    const sig = r.signals.find((s) => s.horizon === h);
+                    return (
+                      <td key={r.stockCode} className={`${styles.tableCell} ${sig && sig.score > 0.2 ? styles.metricPositive : sig && sig.score < -0.2 ? styles.metricNegative : ""}`}>
+                        {sig ? `${formatDirection(sig.direction)} ${decimalFormatter.format(sig.score)}` : "--"}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr>
+                <td className={styles.tableCell}>PER</td>
+                {allResults.map((r) => (
+                  <td key={r.stockCode} className={styles.tableCell}>
+                    {r.financials[0]?.per !== null && r.financials[0]?.per !== undefined ? decimalFormatter.format(r.financials[0].per) : "--"}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className={styles.tableCell}>PBR</td>
+                {allResults.map((r) => (
+                  <td key={r.stockCode} className={styles.tableCell}>
+                    {r.financials[0]?.pbr !== null && r.financials[0]?.pbr !== undefined ? decimalFormatter.format(r.financials[0].pbr) : "--"}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className={styles.emptyState}>비교할 종목 코드를 입력하면 현재 종목과 나란히 비교합니다.</p>
+      )}
+    </article>
+  );
+}
+
+/* ── PDF Export ───────────────────────────────────────────── */
+function handlePrint() {
+  window.print();
 }
 
 /* ── Helpers ─────────────────────────────────────────────── */
